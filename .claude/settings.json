@@ -1,0 +1,52 @@
+{
+  "$comment": "Permissões do projeto (commitado). Preferências pessoais vão em .claude/settings.local.json, que é gitignored. A ideia aqui é pré-aprovar o que é rotina e seguro, para você não ficar clicando 'permitir' o dia inteiro, mantendo confirmação para o que é destrutivo ou custa dinheiro.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "Bash(make *)",
+      "Bash(uv *)",
+      "Bash(python -m pytest *)",
+      "Bash(pytest *)",
+      "Bash(python -m ingest.cli *)",
+      "Bash(ruff *)",
+      "Bash(alembic *)",
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(npx vitest *)",
+      "Bash(npx prettier *)",
+      "Bash(docker compose up -d)",
+      "Bash(docker compose ps)",
+      "Bash(docker compose logs *)",
+      "Bash(curl -s localhost:*)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)"
+    ],
+    "ask": [
+      "Bash(uv add *)",
+      "Bash(npm install *)",
+      "Bash(git push *)",
+      "Bash(docker compose down *)",
+      "Bash(alembic downgrade *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(content/**)",
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)"
+    ]
+  }
+}

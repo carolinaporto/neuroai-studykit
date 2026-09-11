@@ -1,0 +1,42 @@
+# --- segredos: primeira linha por um motivo ---
+.env
+.env.*
+!.env.example
+
+# --- material do curso: não é nosso para redistribuir (ARCHITECTURE.md §8) ---
+content/*
+!content/.gitkeep
+!content/README.md
+
+# --- Claude Code ---
+.claude/settings.local.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+.vite/
+*.local
+
+# --- banco e uploads locais ---
+*.sqlite3
+pgdata/
+storage/
+
+# --- SO / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
