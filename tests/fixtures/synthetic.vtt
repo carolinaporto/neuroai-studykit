@@ -1,0 +1,58 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:04.000
+Today we're covering the basics of reinforcement learning.
+
+00:00:04.000 --> 00:00:09.000
+Unlike supervised learning, there's no dataset of labeled examples handed to the agent up front.
+
+00:00:09.000 --> 00:00:14.500
+Instead, an agent interacts with an environment, taking actions and observing what happens.
+
+00:00:14.500 --> 00:00:19.000
+After each action, the environment returns a new state and a scalar reward.
+
+00:00:19.000 --> 00:00:24.000
+The agent's goal is to choose actions that maximize the total reward it collects over time.
+
+00:00:24.000 --> 00:00:29.500
+A policy is the agent's strategy: a mapping from states to actions, or to a distribution over actions.
+
+00:00:29.500 --> 00:00:35.000
+A value function estimates how much future reward the agent can expect from a given state.
+
+00:00:35.000 --> 00:00:40.000
+The action-value function, often written Q, estimates expected future reward for taking a specific action in a state.
+
+00:00:40.000 --> 00:00:45.500
+One central tension in reinforcement learning is exploration versus exploitation.
+
+00:00:45.500 --> 00:00:51.000
+Exploitation means choosing the action currently believed to be best, based on what's been learned so far.
+
+00:00:51.000 --> 00:00:56.500
+Exploration means trying an action specifically to learn more about the environment, even if it looks worse right now.
+
+00:00:56.500 --> 00:01:02.000
+An epsilon-greedy policy exploits most of the time, but explores a random action with small probability epsilon.
+
+00:01:02.000 --> 00:01:07.500
+Temporal-difference learning updates a value estimate using the difference between consecutive predictions, without waiting for the episode to end.
+
+00:01:07.500 --> 00:01:13.000
+Q-learning is a temporal-difference method that learns the action-value function directly, independent of the policy being followed.
+
+00:01:13.000 --> 00:01:18.000
+Because it learns off-policy, Q-learning can reuse experience collected under an older or more exploratory policy.
+
+00:01:18.000 --> 00:01:23.500
+A discount factor, usually written gamma and between zero and one, controls how much the agent values future reward compared to immediate reward.
+
+00:01:23.500 --> 00:01:28.500
+A discount factor close to zero makes the agent short-sighted; close to one makes it weigh distant rewards almost as much as immediate ones.
+
+00:01:28.500 --> 00:01:33.000
+When the state space is too large to hold a table of values, a function approximator, such as a neural network, estimates the value function instead.
+
+00:01:33.000 --> 00:01:38.000
+That combination of deep neural networks with reinforcement learning is usually called deep reinforcement learning.

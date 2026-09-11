@@ -9,12 +9,20 @@ dependencies = [
     "fastapi>=0.141.1",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
+    "pymupdf>=1.24",
+    "python-pptx>=1.0.2",
     "sqlalchemy[asyncio]>=2.0.52",
     "uvicorn[standard]>=0.52.4",
 ]
 
-[tool.uv]
-package = false
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# packages/ingest is installed in editable mode as the top-level "ingest" package so it
+# stays importable on its own (invariant 4) and `python -m ingest.cli` works from repo root.
+[tool.hatch.build.targets.wheel]
+packages = ["packages/ingest"]
 
 [tool.ruff]
 line-length = 100
