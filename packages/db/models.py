@@ -8,7 +8,16 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ARRAY, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    ARRAY,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -158,3 +167,22 @@ class Item(UUIDPkMixin, CreatedAtMixin, Base):
     )
     gen_model: Mapped[str] = mapped_column(String)
     gen_prompt_version: Mapped[str] = mapped_column(String)
+
+
+class Attempt(UUIDPkMixin, CreatedAtMixin, Base):
+    __tablename__ = "attempt"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"), index=True)
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("item.id", ondelete="CASCADE"), index=True
+    )
+    response_text: Mapped[str] = mapped_column(Text)
+    # sha256(item_id + normalized response) — see apps/api/services/grading.py. Indexed,
+    # not unique: a duplicate row from a rare race is harmless, so no need to guard it.
+    response_hash: Mapped[str] = mapped_column(String(64), index=True)
+    score: Mapped[float] = mapped_column(Float)
+    rubric_hits: Mapped[list[dict]] = mapped_column(JSONB)
+    misconceptions: Mapped[list[str]] = mapped_column(ARRAY(String))
+    feedback_md: Mapped[str] = mapped_column(Text)
+    grader_model: Mapped[str] = mapped_column(String)
+    latency_ms: Mapped[int] = mapped_column(Integer)
