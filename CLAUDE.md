@@ -26,6 +26,7 @@ make test          # pytest + vitest
 make lint          # ruff check --fix + prettier
 make migrate m=".."  # alembic revision --autogenerate
 make upgrade       # alembic upgrade head
+make calibrate     # calibração manual do corretor contra tests/calibration/ — chama a API e o LLM de verdade; nunca roda no pytest/CI
 python -m ingest.cli sync content/week01   # ingestão local, sem servidor
 ```
 

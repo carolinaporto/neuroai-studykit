@@ -1,4 +1,4 @@
-.PHONY: up down api web test test-api test-web lint migrate upgrade
+.PHONY: up down api web test test-api test-web lint migrate upgrade calibrate
 
 up:
 	docker compose up -d
@@ -29,3 +29,6 @@ migrate:
 
 upgrade:
 	uv run alembic upgrade head
+
+calibrate:
+	uv run python -m tests.calibration.run_calibration
