@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from apps.api.core.config import settings
+from packages.db import models  # noqa: F401  (registers tables on Base.metadata)
+from packages.db.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -18,9 +20,7 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# No domain models yet (M0) — M2 points this at the declarative Base's metadata
-# once the first ORM models exist, enabling `alembic revision --autogenerate`.
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
