@@ -35,8 +35,17 @@ Se um comando ainda não existe no `Makefile`, crie-o no marco em que for necess
 
 1. **Toda questão é ancorada.** Um `Item` sempre referencia `chunk_ids`, e cada ponto da
    rubrica carrega `support_quote` que existe **literalmente** no texto do chunk. Se a
-   citação não bater por comparação de string, o item é rejeitado na validação. Nunca
-   relaxe essa checagem para "quase igual" ou similaridade semântica.
+   citação não bater, o item é rejeitado na validação. "Literalmente" permite exatamente
+   uma normalização, implementada em `packages/ingest/validators.py::_collapse_whitespace`:
+   qualquer sequência de espaço/tab/quebra-de-linha, dos dois lados, vira um espaço único,
+   com as pontas aparadas — nada além disso (sem case-folding, sem remover pontuação, sem
+   normalizar aspas ou unicode). Existe porque o PyMuPDF quebra linha no meio de frases ao
+   extrair texto de PDF, e um LLM normaliza essa quebra ao citar; sem isso, todo item
+   gerado a partir de PDF real era rejeitado por um artefato de extração, não por invenção
+   (visto na prática no M3: 8/8 itens rejeitados num chunk real antes desse ajuste). Se uma
+   sessão futura encontrar outra classe de divergência (acento, aspa curva vs. reta,
+   hífen), **isso é decisão nova a ser tomada aqui, em conversa comigo — não uma extensão
+   implícita desta regra.** Nunca relaxe para "quase igual" ou similaridade semântica.
 2. **Nota é calculada em Python, não pelo LLM.** O modelo só decide, por ponto da rubrica,
    `covered: true|false`. O score é `Σ(peso coberto) / Σ(peso)`. Nunca peça um número ao
    modelo.

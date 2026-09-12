@@ -112,6 +112,68 @@ async def test_invented_quote_is_rejected_not_the_whole_batch() -> None:
 
 
 @pytest.mark.asyncio
+async def test_quote_with_mid_sentence_newline_in_chunk_is_still_accepted() -> None:
+    """PyMuPDF wraps PDF text with a literal newline wherever the page renderer wrapped a
+    line, including mid-sentence; a model quoting that sentence normalizes it to a space,
+    exactly like a person copying text off a page would. That's an extraction artifact, not
+    a paraphrase, and CLAUDE.md invariant 1 now explicitly tolerates only this one class of
+    difference — this test is what proves that tolerance actually fires."""
+    pdf_like_chunk = (
+        "Hebbian plasticity is often summarized as \"cells that fire together wire\ntogether.\" "
+        "Long-term potentiation is a persistent increase in synaptic strength following brief "
+        "high-frequency stimulation of a presynaptic pathway."
+    )
+    rubric = [
+        {
+            "point": GOOD_RUBRIC[0]["point"],
+            "weight": 1.0,
+            # same words as the chunk, but with a plain space where the chunk has "\n"
+            "support_quote": 'Hebbian plasticity is often summarized as "cells that fire '
+            'together wire together."',
+        },
+        GOOD_RUBRIC[1],
+    ]
+    llm = FakeLLM([json.dumps({"items": [_good_item(rubric=rubric)]})])
+
+    result = await generate_items_for_chunk(
+        chunk_text=pdf_like_chunk, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.rejected == []
+    assert len(result.items) == 1
+
+
+@pytest.mark.asyncio
+async def test_quote_differing_by_more_than_whitespace_is_still_rejected() -> None:
+    """Whitespace collapse must not become a crack that lets a genuinely altered quote
+    through — only runs of space/tab/newline are equivalent, nothing else."""
+    pdf_like_chunk = (
+        "Hebbian plasticity is often summarized as \"cells that fire together wire\ntogether.\" "
+        "Long-term potentiation is a persistent increase in synaptic strength following brief "
+        "high-frequency stimulation of a presynaptic pathway."
+    )
+    rubric = [
+        {
+            "point": GOOD_RUBRIC[0]["point"],
+            "weight": 1.0,
+            # one word changed ("wired" instead of "wire") on top of the whitespace change
+            "support_quote": 'Hebbian plasticity is often summarized as "cells that fire '
+            'together wired together."',
+        },
+        GOOD_RUBRIC[1],
+    ]
+    llm = FakeLLM([json.dumps({"items": [_good_item(rubric=rubric)]})])
+
+    result = await generate_items_for_chunk(
+        chunk_text=pdf_like_chunk, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.items == []
+    assert len(result.rejected) == 1
+    assert "support_quote not found verbatim" in result.rejected[0].reason
+
+
+@pytest.mark.asyncio
 async def test_malformed_json_retries_once_then_fails() -> None:
     llm = FakeLLM(["not json at all", "still not json, sorry"])
 
@@ -192,6 +254,21 @@ async def test_proposed_topics_are_collected_but_never_persisted() -> None:
     assert len(result.items) == 1
     assert not hasattr(result.items[0], "proposed_topics")
     assert result.proposed_topics == ["synaptic tagging and capture"]
+
+
+@pytest.mark.asyncio
+async def test_json_wrapped_in_markdown_fence_is_still_accepted() -> None:
+    """Real models sometimes wrap the JSON in ```json fences despite being told not to —
+    that's a formatting quirk, not a malformed response, and shouldn't burn the retry."""
+    fenced = "```json\n" + json.dumps({"items": [_good_item()]}) + "\n```"
+    llm = FakeLLM([fenced])
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert len(result.items) == 1
+    assert len(llm.calls) == 1
 
 
 @pytest.mark.asyncio

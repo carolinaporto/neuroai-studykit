@@ -2,8 +2,11 @@
 
 CLAUDE.md invariant 5: the only way this module talks to an LLM is through `LLMClient`
 (`packages/core/llm.py`); tests inject `FakeLLM`. The prompt itself is the versioned file
-`prompts/generate_v1.md`, never an inline string — its sha256 becomes `Item.gen_prompt_version`
-so you can tell which questions came from which prompt version later.
+`prompts/generate_v2.md`, never an inline string — its sha256 becomes `Item.gen_prompt_version`
+so you can tell which questions came from which prompt version later. Old prompt files (e.g.
+`generate_v1.md`) are never edited in place and never deleted once items have been generated
+from them — they're what makes `gen_prompt_version` a meaningful diff key instead of just a
+random hash.
 
 Retry policy: "1 retentativa depois falha" applies only to the outer JSON shape (it doesn't
 parse, or isn't `{"items": [...]}`) — that's the model failing to follow instructions at
@@ -15,6 +18,7 @@ and another paid call.
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -25,7 +29,7 @@ from .generated_item import GeneratedItem, RejectedItem, ValidatedItem
 from .topics import TopicEntry, TopicsVocabulary
 from .validators import ItemRejected, validate_generated_item
 
-PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_v1.md"
+PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_v2.md"
 MAX_ATTEMPTS = 2  # 1 try + 1 retry, per CLAUDE.md
 
 SYSTEM_PROMPT = (
@@ -74,11 +78,24 @@ def render_prompt(template: str, *, chunk_text: str, topics: list[TopicEntry]) -
     return rendered
 
 
+_CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*\n(.*)\n```\s*$", re.DOTALL)
+
+
+def _strip_code_fence(raw: str) -> str:
+    """The prompt says "no markdown fences", but real models wrap the JSON in ```json ...```
+    anyway often enough that treating it as a parse failure would burn the one retry on
+    formatting alone. Stripping a wrapping fence is just unwrapping the payload — it doesn't
+    touch the JSON content, so every validator downstream still runs on the model's exact
+    text."""
+    match = _CODE_FENCE_RE.match(raw.strip())
+    return match.group(1) if match else raw
+
+
 def _parse_batch_shape(raw: str) -> list[dict] | None:
     """Returns the raw `items` list if `raw` is `{"items": [...]}`, else None — the caller
     treats None as "malformed", worth a retry."""
     try:
-        payload = json.loads(raw)
+        payload = json.loads(_strip_code_fence(raw))
     except json.JSONDecodeError:
         return None
     if not isinstance(payload, dict):
