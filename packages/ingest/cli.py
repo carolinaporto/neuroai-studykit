@@ -18,6 +18,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from packages.core.llm import AnthropicLLMClient, LLMClient, LLMSettings
 from packages.db.models import (
     Chunk as ChunkRow,
 )
@@ -25,6 +26,9 @@ from packages.db.models import (
     IngestJob,
     IngestJobKind,
     IngestJobStatus,
+    Item,
+    ItemBloom,
+    ItemType,
     Source,
     SourceKind,
     SourceStatus,
@@ -33,10 +37,12 @@ from packages.db.models import (
 from packages.db.session import DbSettings, make_session_factory
 
 from .chunker import chunk_blocks
+from .generator import GenerationFailedError, generate_items_for_chunk, prompt_version_hash
 from .models import Chunk, Locator, ParsedBlock
 from .parsers.pdf import parse_pdf
 from .parsers.pptx import parse_pptx
 from .parsers.transcript import parse_transcript
+from .topics import load_topics
 
 _PARSERS = {
     ".pdf": parse_pdf,
@@ -185,6 +191,131 @@ async def sync_folder(
     return counts
 
 
+async def generate_for_week(
+    week: int,
+    session_factory: async_sessionmaker[AsyncSession],
+    llm: LLMClient,
+    *,
+    force: bool = False,
+) -> dict[str, object]:
+    """Generates draft items for every chunk of every Source with `week=week`.
+
+    By default, skips chunks already covered by an existing Item, so reruns don't re-spend
+    tokens on chunks already generated. `force=True` (CLI `--force`) turns that off and
+    regenerates every chunk regardless — for when you've edited the prompt and want to see
+    what the new version produces. It does not delete or retire the old items: each new one
+    is tagged with the current `gen_prompt_version` (see `generator.prompt_version_hash`),
+    so old and new items sit side by side and you can compare them by that field until you
+    triage them in the M6 review UI.
+    """
+    vocabulary = load_topics()
+    prompt_version = prompt_version_hash()
+    counts = {"chunks_processed": 0, "items_saved": 0, "items_rejected": 0, "chunks_failed": 0}
+    proposed_topics: list[str] = []
+
+    async with session_factory() as session:
+        sources = (await session.scalars(select(Source).where(Source.week == week))).all()
+        if not sources:
+            return {**counts, "proposed_topics": proposed_topics}
+        source_ids = [s.id for s in sources]
+
+        covered_chunk_ids: set[uuid.UUID] = set()
+        if not force:
+            existing_items = (
+                await session.scalars(select(Item).where(Item.source_id.in_(source_ids)))
+            ).all()
+            covered_chunk_ids = {cid for item in existing_items for cid in item.chunk_ids}
+
+        chunks = (
+            await session.scalars(
+                select(ChunkRow)
+                .where(ChunkRow.source_id.in_(source_ids))
+                .order_by(ChunkRow.ordinal)
+            )
+        ).all()
+
+        for chunk in chunks:
+            if chunk.id in covered_chunk_ids:
+                continue
+            counts["chunks_processed"] += 1
+
+            job = IngestJob(
+                source_id=chunk.source_id,
+                kind=IngestJobKind.generate,
+                status=IngestJobStatus.running,
+                attempts=1,
+                payload={"chunk_id": str(chunk.id)},
+            )
+            session.add(job)
+            await session.commit()
+
+            try:
+                result = await generate_items_for_chunk(
+                    chunk_text=chunk.text, week=week, vocabulary=vocabulary, llm=llm
+                )
+            except GenerationFailedError as exc:
+                job.status = IngestJobStatus.failed
+                job.error = str(exc)
+                await session.commit()
+                counts["chunks_failed"] += 1
+                continue
+
+            for validated in result.items:
+                session.add(
+                    Item(
+                        source_id=chunk.source_id,
+                        chunk_ids=[chunk.id],
+                        type=ItemType(validated.type),
+                        prompt=validated.prompt,
+                        reference_answer=validated.reference_answer,
+                        rubric=[p.model_dump() for p in validated.rubric],
+                        difficulty=validated.difficulty,
+                        bloom=ItemBloom(validated.bloom),
+                        topics=validated.topics,
+                        gen_model=llm.model_name,
+                        gen_prompt_version=prompt_version,
+                    )
+                )
+            for topic in result.proposed_topics:
+                if topic not in proposed_topics:
+                    proposed_topics.append(topic)
+
+            job.status = IngestJobStatus.done
+            job.payload = {
+                "chunk_id": str(chunk.id),
+                "items_saved": len(result.items),
+                "items_rejected": len(result.rejected),
+                "rejected_reasons": [r.reason for r in result.rejected],
+                "attempts": result.attempts,
+            }
+            await session.commit()
+            counts["items_saved"] += len(result.items)
+            counts["items_rejected"] += len(result.rejected)
+
+    return {**counts, "proposed_topics": proposed_topics}
+
+
+def _run_generate(week: int, force: bool) -> int:
+    db_settings = DbSettings()
+    llm_settings = LLMSettings()
+    session_factory = make_session_factory(db_settings.database_url)
+    llm = AnthropicLLMClient(
+        api_key=llm_settings.anthropic_api_key, model=llm_settings.llm_model_generate
+    )
+
+    result = asyncio.run(generate_for_week(week, session_factory, llm, force=force))
+    print(
+        f"{result['chunks_processed']} chunks processados, {result['items_saved']} itens salvos, "
+        f"{result['items_rejected']} itens rejeitados, {result['chunks_failed']} chunks falharam"
+    )
+    proposed = result["proposed_topics"]
+    if proposed:
+        print("tópicos propostos (não salvos — para revisão em M6):")
+        for topic in proposed:
+            print(f"  - {topic}")
+    return 1 if result["chunks_failed"] else 0
+
+
 def _run_sync(folder: Path) -> int:
     settings = DbSettings()
     session_factory = make_session_factory(settings.database_url)
@@ -207,6 +338,17 @@ def main(argv: list[str] | None = None) -> int:
     sync_cmd = subparsers.add_parser("sync", help="parse+chunk a folder and persist to Postgres")
     sync_cmd.add_argument("folder", type=Path)
 
+    generate_cmd = subparsers.add_parser(
+        "generate", help="generate draft items for a week's chunks via the LLM"
+    )
+    generate_cmd.add_argument("--week", type=int, required=True)
+    generate_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="regenerate every chunk even if it already has items (old items are kept, "
+        "not deleted — compare by gen_prompt_version)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "parse":
@@ -220,6 +362,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "sync":
         return _run_sync(args.folder)
+
+    if args.command == "generate":
+        return _run_generate(args.week, args.force)
 
     return 1
 

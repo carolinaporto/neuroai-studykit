@@ -1,6 +1,6 @@
-"""ORM models for ARCHITECTURE.md §3 — M2 scope only: User, Source, Chunk, IngestJob.
+"""ORM models for ARCHITECTURE.md §3 — through M3: User, Source, Chunk, IngestJob, Item.
 
-Table names are singular (`user`, `source`, `chunk`, `ingest_job`) to match the fixed
+Table names are singular (`user`, `source`, `chunk`, `ingest_job`, `item`) to match the fixed
 vocabulary used across the docs and the M2 acceptance check (`select count(*) from chunk`).
 """
 
@@ -8,9 +8,10 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import ARRAY, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, CreatedAtMixin, UUIDPkMixin
@@ -38,6 +39,7 @@ class SourceStatus(enum.StrEnum):
 
 class IngestJobKind(enum.StrEnum):
     parse_and_chunk = "parse_and_chunk"
+    generate = "generate"
 
 
 class IngestJobStatus(enum.StrEnum):
@@ -45,6 +47,34 @@ class IngestJobStatus(enum.StrEnum):
     running = "running"
     done = "done"
     failed = "failed"
+
+
+class ItemType(enum.StrEnum):
+    """Full type set from ARCHITECTURE.md §3. M3's generator only ever emits `free_recall`
+    and `term_def` (Fase 1 scope); `cloze`/`mcq`/`compare`/`application` are here because the
+    column's contract is fixed by the architecture doc, not because this milestone writes
+    them."""
+
+    free_recall = "free_recall"
+    term_def = "term_def"
+    cloze = "cloze"
+    mcq = "mcq"
+    compare = "compare"
+    application = "application"
+
+
+class ItemBloom(enum.StrEnum):
+    recall = "recall"
+    understand = "understand"
+    apply = "apply"
+    analyze = "analyze"
+
+
+class ItemStatus(enum.StrEnum):
+    draft = "draft"
+    approved = "approved"
+    edited = "edited"
+    retired = "retired"
 
 
 class User(UUIDPkMixin, CreatedAtMixin, Base):
@@ -104,3 +134,27 @@ class IngestJob(UUIDPkMixin, CreatedAtMixin, Base):
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     locked_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class Item(UUIDPkMixin, CreatedAtMixin, Base):
+    __tablename__ = "item"
+
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source.id", ondelete="CASCADE"), index=True
+    )
+    # uuid[] rather than a join table: an item's anchor chunks are fixed at generation time
+    # and never queried from the chunk side, so a real relationship table buys nothing here.
+    chunk_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(PgUUID(as_uuid=True)))
+    type: Mapped[ItemType] = mapped_column(SqlEnum(ItemType, name="item_type"))
+    prompt: Mapped[str] = mapped_column(Text)
+    reference_answer: Mapped[str] = mapped_column(Text)
+    rubric: Mapped[list[dict]] = mapped_column(JSONB)
+    choices: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    difficulty: Mapped[int] = mapped_column(Integer)
+    bloom: Mapped[ItemBloom] = mapped_column(SqlEnum(ItemBloom, name="item_bloom"))
+    topics: Mapped[list[str]] = mapped_column(ARRAY(String))
+    status: Mapped[ItemStatus] = mapped_column(
+        SqlEnum(ItemStatus, name="item_status"), default=ItemStatus.draft
+    )
+    gen_model: Mapped[str] = mapped_column(String)
+    gen_prompt_version: Mapped[str] = mapped_column(String)

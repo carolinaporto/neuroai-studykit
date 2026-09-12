@@ -1,0 +1,641 @@
+# topics.yaml — vocabulário controlado de tópicos do GENED 1201
+#
+# Para que serve:
+#   1. O gerador (M3) só pode etiquetar um Item com slugs que existam aqui.
+#      Sem isso você termina com "backprop", "back-propagation" e "gradient descent"
+#      como três tópicos distintos, e o painel de fraquezas vira ruído.
+#   2. O painel de progresso (M10) agrega acerto por `slug`, por `unit` e por `side`.
+#
+# O campo `side` é o que faz este arquivo valer a pena. O objetivo declarado do curso é
+# comparação entre os dois campos, então cada tópico é marcado como:
+#   neuro  — achado ou conceito da neurociência/ciência cognitiva
+#   ai     — mecanismo ou conceito de ML/IA
+#   bridge — o conceito que existe para conectar os dois, ou a comparação em si
+# Com isso o painel responde "eu entendo inferência hierárquica do lado da IA mas não do
+# lado do cérebro?" — que é exatamente a fluência que o curso cobra na prova.
+#
+# Convenções:
+#   - `slug`: kebab-case, estável. NUNCA renomeie um slug já usado por Items existentes;
+#     aposente-o com `deprecated: true` e crie outro.
+#   - `aliases`: variantes que o gerador pode ter escrito. Servem para normalizar na
+#     validação, não para virar tópico novo.
+#   - O syllabus avisa "subject to change a little": quando uma aula trouxer um conceito
+#     que não está aqui, ADICIONE antes de gerar as questões daquela semana.
+#   - O gerador pode devolver um campo `proposed_topics` com termos que não encontrou no
+#     vocabulário. Isso NÃO entra no banco — aparece na revisão (M6) para você decidir se
+#     vira tópico oficial. É assim que o vocabulário cresce sem virar bagunça.
+#
+# `week` é a semana prevista; ajuste conforme o curso andar. A ordem das unidades segue o
+# syllabus: de "o que é inteligência" até as consequências sociais.
+
+version: 1
+
+# ---------------------------------------------------------------------------
+# Transversal: métodos e ferramentas que reaparecem em várias semanas.
+# Etiquete com estes quando a questão for sobre COMO se mede, não sobre o achado.
+# ---------------------------------------------------------------------------
+cross_cutting:
+  - slug: single-unit-recording
+    label: "Single-unit / multi-unit recording"
+    side: neuro
+    aliases: ["electrophysiology", "spike recording"]
+  - slug: calcium-imaging
+    label: "Calcium imaging"
+    side: neuro
+  - slug: fmri
+    label: "fMRI and the BOLD signal"
+    side: neuro
+    aliases: ["BOLD", "functional MRI"]
+  - slug: eeg-meg
+    label: "EEG / MEG"
+    side: neuro
+  - slug: optogenetics
+    label: "Optogenetics and causal manipulation"
+    side: neuro
+  - slug: lesion-and-perturbation
+    label: "Lesion studies and perturbation logic"
+    side: neuro
+  - slug: artiphysiology
+    label: "Artiphysiology: running neuro methods on models"
+    side: bridge
+    aliases: ["model physiology", "probing units"]
+  - slug: representational-similarity-analysis
+    label: "Representational similarity analysis (RSA)"
+    side: bridge
+    aliases: ["RSA", "representational geometry comparison"]
+  - slug: encoding-decoding-models
+    label: "Encoding and decoding models"
+    side: bridge
+  - slug: linear-probing
+    label: "Linear probes on internal representations"
+    side: ai
+  - slug: ablation-studies
+    label: "Ablation studies"
+    side: ai
+  - slug: benchmarks-and-evaluation
+    label: "Benchmarks and evaluation design"
+    side: ai
+  - slug: correlation-vs-causation
+    label: "Correlation vs. causation in brain and model data"
+    side: bridge
+
+units:
+  # -------------------------------------------------------------------------
+  - id: u01
+    week: 1
+    title: "What is intelligence? Evolution and adaptive minds"
+    topics:
+      - slug: definitions-of-intelligence
+        label: "Definitions of intelligence"
+        side: bridge
+      - slug: narrow-vs-general-intelligence
+        label: "Narrow vs. general intelligence"
+        side: bridge
+        aliases: ["AGI vs narrow AI"]
+      - slug: evolution-of-nervous-systems
+        label: "Evolution of nervous systems"
+        side: neuro
+      - slug: convergent-evolution-of-intelligence
+        label: "Convergent evolution of intelligence"
+        side: neuro
+        aliases: ["cephalopod intelligence", "corvid intelligence"]
+      - slug: comparative-cognition
+        label: "Comparative cognition across species"
+        side: neuro
+      - slug: adaptive-behavior-and-niche
+        label: "Adaptive behavior and ecological niche"
+        side: neuro
+        aliases: ["umwelt", "ecological intelligence"]
+      - slug: embodiment
+        label: "Embodiment and the body's role in cognition"
+        side: bridge
+      - slug: marr-levels-of-analysis
+        label: "Marr's three levels of analysis"
+        side: bridge
+        aliases: ["computational algorithmic implementational"]
+      - slug: turing-test
+        label: "The Turing test and behavioral criteria for mind"
+        side: ai
+      - slug: intelligence-benchmarks
+        label: "Measuring machine intelligence: benchmarks and generalization"
+        side: ai
+        aliases: ["ARC", "generalization tests"]
+
+  # -------------------------------------------------------------------------
+  - id: u02
+    week: 2
+    title: "Neurons, networks, and representation geometry"
+    topics:
+      - slug: neuron-doctrine
+        label: "The neuron doctrine"
+        side: neuro
+      - slug: action-potential
+        label: "Action potentials"
+        side: neuro
+        aliases: ["spikes", "spiking"]
+      - slug: synaptic-transmission
+        label: "Synaptic transmission"
+        side: neuro
+      - slug: rate-vs-temporal-coding
+        label: "Rate coding vs. temporal coding"
+        side: neuro
+      - slug: receptive-field
+        label: "Receptive fields"
+        side: neuro
+      - slug: tuning-curve
+        label: "Tuning curves"
+        side: neuro
+      - slug: population-coding
+        label: "Population coding"
+        side: neuro
+      - slug: neural-manifolds
+        label: "Neural manifolds and low-dimensional structure"
+        side: neuro
+        aliases: ["latent dynamics", "dimensionality of neural activity"]
+      - slug: representation-geometry
+        label: "Representation geometry"
+        side: bridge
+      - slug: artificial-neuron
+        label: "The artificial neuron and activation functions"
+        side: ai
+        aliases: ["perceptron", "ReLU", "sigmoid"]
+      - slug: distributed-representations
+        label: "Distributed representations"
+        side: bridge
+      - slug: sparse-coding
+        label: "Sparse coding and efficiency of representation"
+        side: bridge
+      - slug: embeddings
+        label: "Embeddings and vector spaces"
+        side: ai
+        aliases: ["latent space", "feature vector"]
+      - slug: linear-separability
+        label: "Linear separability and readout"
+        side: ai
+
+  # -------------------------------------------------------------------------
+  - id: u03
+    week: 3
+    title: "Learning, development, and the growth of intelligence"
+    topics:
+      - slug: hebbian-plasticity
+        label: "Hebbian plasticity"
+        side: neuro
+        aliases: ["fire together wire together"]
+      - slug: ltp-ltd
+        label: "Long-term potentiation and depression"
+        side: neuro
+        aliases: ["LTP", "LTD"]
+      - slug: stdp
+        label: "Spike-timing-dependent plasticity"
+        side: neuro
+      - slug: critical-periods
+        label: "Critical periods in development"
+        side: neuro
+        aliases: ["sensitive periods"]
+      - slug: developmental-trajectories
+        label: "Developmental trajectories and experience-dependence"
+        side: neuro
+      - slug: reward-prediction-error
+        label: "Dopamine and reward prediction error"
+        side: bridge
+        aliases: ["RPE", "TD error"]
+      - slug: supervised-learning
+        label: "Supervised learning"
+        side: ai
+      - slug: unsupervised-learning
+        label: "Unsupervised learning"
+        side: ai
+      - slug: self-supervised-learning
+        label: "Self-supervised learning"
+        side: ai
+        aliases: ["SSL", "contrastive learning", "masked prediction"]
+      - slug: reinforcement-learning
+        label: "Reinforcement learning: agents, rewards, policies"
+        side: ai
+        aliases: ["RL"]
+      - slug: loss-functions
+        label: "Loss functions and objectives"
+        side: ai
+        aliases: ["cost function", "objective function"]
+      - slug: gradient-descent
+        label: "Gradient descent"
+        side: ai
+        aliases: ["SGD", "stochastic gradient descent"]
+      - slug: backpropagation
+        label: "Backpropagation"
+        side: ai
+        aliases: ["backprop", "back-propagation"]
+      - slug: credit-assignment
+        label: "The credit assignment problem"
+        side: bridge
+      - slug: biological-plausibility-of-backprop
+        label: "Is backprop biologically plausible?"
+        side: bridge
+        aliases: ["weight transport problem", "feedback alignment"]
+      - slug: overfitting-and-generalization
+        label: "Overfitting, generalization, train/test split"
+        side: ai
+        aliases: ["bias-variance", "held-out set"]
+
+  # -------------------------------------------------------------------------
+  - id: u04
+    week: 4
+    title: "Large-scale brain networks and AI architectures"
+    topics:
+      - slug: cortical-hierarchy
+        label: "Cortical hierarchy and areal organization"
+        side: neuro
+      - slug: thalamocortical-loops
+        label: "Thalamocortical loops"
+        side: neuro
+      - slug: default-mode-network
+        label: "Default mode network"
+        side: neuro
+        aliases: ["DMN"]
+      - slug: functional-connectivity
+        label: "Functional connectivity"
+        side: neuro
+      - slug: connectome
+        label: "Connectomics and wiring diagrams"
+        side: neuro
+      - slug: network-topology
+        label: "Network topology: modularity, hubs, small-world"
+        side: bridge
+      - slug: feedforward-networks
+        label: "Feedforward networks (MLPs)"
+        side: ai
+        aliases: ["MLP", "fully connected network"]
+      - slug: convolutional-networks
+        label: "Convolutional neural networks"
+        side: ai
+        aliases: ["CNN", "ConvNet"]
+      - slug: recurrent-networks
+        label: "Recurrent neural networks"
+        side: ai
+        aliases: ["RNN", "LSTM", "GRU"]
+      - slug: transformer-architecture
+        label: "The Transformer architecture"
+        side: ai
+      - slug: residual-connections
+        label: "Residual connections and depth"
+        side: ai
+        aliases: ["skip connections", "ResNet"]
+      - slug: inductive-biases
+        label: "Architectural inductive biases"
+        side: bridge
+
+  # -------------------------------------------------------------------------
+  - id: u05
+    week: 5
+    title: "Perception as hierarchical inference"
+    topics:
+      - slug: visual-hierarchy
+        label: "The visual hierarchy: V1 to IT"
+        side: neuro
+        aliases: ["V1 V2 V4 IT"]
+      - slug: hubel-wiesel
+        label: "Hubel and Wiesel: simple and complex cells"
+        side: neuro
+        aliases: ["simple cells", "complex cells", "orientation selectivity"]
+      - slug: ventral-dorsal-streams
+        label: "Ventral and dorsal streams"
+        side: neuro
+        aliases: ["what and where pathways"]
+      - slug: invariant-object-recognition
+        label: "Invariant object recognition"
+        side: neuro
+      - slug: predictive-coding
+        label: "Predictive coding"
+        side: bridge
+        aliases: ["prediction error minimization"]
+      - slug: bayesian-brain
+        label: "The Bayesian brain and priors"
+        side: bridge
+        aliases: ["Bayesian inference in perception", "priors and likelihoods"]
+      - slug: analysis-by-synthesis
+        label: "Analysis by synthesis"
+        side: bridge
+        aliases: ["generative inference"]
+      - slug: generative-vs-discriminative
+        label: "Generative vs. discriminative models"
+        side: ai
+      - slug: convolution-and-pooling
+        label: "Convolution and pooling as vision operations"
+        side: ai
+      - slug: deep-nets-as-models-of-cortex
+        label: "Deep nets as models of visual cortex"
+        side: bridge
+        aliases: ["Brain-Score", "neural predictivity"]
+      - slug: adversarial-examples
+        label: "Adversarial examples"
+        side: ai
+      - slug: shape-vs-texture-bias
+        label: "Shape vs. texture bias; human-model divergence"
+        side: bridge
+
+  # -------------------------------------------------------------------------
+  - id: u06
+    week: 6
+    title: "Language, prediction, and generative models"
+    topics:
+      - slug: language-network
+        label: "The language network: Broca, Wernicke and beyond"
+        side: neuro
+        aliases: ["Broca's area", "Wernicke's area"]
+      - slug: prediction-in-comprehension
+        label: "Prediction during language comprehension"
+        side: neuro
+        aliases: ["N400", "surprisal effects"]
+      - slug: syntax-and-semantics
+        label: "Syntax and semantics"
+        side: bridge
+      - slug: compositionality
+        label: "Compositionality"
+        side: bridge
+      - slug: symbol-grounding
+        label: "Symbol grounding"
+        side: bridge
+        aliases: ["grounding problem"]
+      - slug: poverty-of-the-stimulus
+        label: "Poverty of the stimulus and innateness debates"
+        side: neuro
+      - slug: next-token-prediction
+        label: "Next-token prediction as an objective"
+        side: ai
+        aliases: ["autoregressive modeling", "language modeling objective"]
+      - slug: tokenization
+        label: "Tokenization"
+        side: ai
+      - slug: large-language-models
+        label: "Large language models"
+        side: ai
+        aliases: ["LLM", "GPT-style models"]
+      - slug: in-context-learning
+        label: "In-context learning"
+        side: ai
+        aliases: ["few-shot prompting"]
+      - slug: scaling-laws
+        label: "Scaling laws"
+        side: ai
+      - slug: emergent-abilities
+        label: "Emergent abilities and their measurement"
+        side: ai
+      - slug: hallucination
+        label: "Hallucination and confabulation"
+        side: bridge
+      - slug: llms-as-models-of-language-processing
+        label: "LLMs as models of human language processing"
+        side: bridge
+
+  # -------------------------------------------------------------------------
+  - id: u07
+    week: 7
+    title: "Memory and world models"
+    topics:
+      - slug: hippocampus
+        label: "The hippocampus and memory"
+        side: neuro
+      - slug: place-and-grid-cells
+        label: "Place cells and grid cells"
+        side: neuro
+        aliases: ["entorhinal grid cells"]
+      - slug: cognitive-maps
+        label: "Cognitive maps"
+        side: bridge
+      - slug: episodic-vs-semantic-memory
+        label: "Episodic vs. semantic memory"
+        side: neuro
+      - slug: consolidation-and-replay
+        label: "Consolidation and replay"
+        side: neuro
+        aliases: ["sharp-wave ripples", "systems consolidation"]
+      - slug: engram
+        label: "Engrams and memory traces"
+        side: neuro
+      - slug: pattern-separation-completion
+        label: "Pattern separation and pattern completion"
+        side: bridge
+      - slug: catastrophic-forgetting
+        label: "Catastrophic forgetting"
+        side: ai
+        aliases: ["continual learning problem"]
+      - slug: complementary-learning-systems
+        label: "Complementary learning systems"
+        side: bridge
+        aliases: ["CLS theory"]
+      - slug: experience-replay
+        label: "Experience replay in machine learning"
+        side: ai
+        aliases: ["replay buffer"]
+      - slug: retrieval-augmentation
+        label: "Retrieval-augmented models"
+        side: ai
+        aliases: ["RAG", "external memory"]
+      - slug: world-models
+        label: "World models"
+        side: bridge
+      - slug: model-based-vs-model-free
+        label: "Model-based vs. model-free control"
+        side: bridge
+
+  # -------------------------------------------------------------------------
+  - id: u08
+    week: 8
+    title: "Attention, working memory, and cognitive control"
+    topics:
+      - slug: selective-attention
+        label: "Selective attention"
+        side: neuro
+        aliases: ["spotlight of attention", "biased competition"]
+      - slug: prefrontal-cortex
+        label: "Prefrontal cortex and control"
+        side: neuro
+      - slug: persistent-activity
+        label: "Persistent activity and delay-period firing"
+        side: neuro
+      - slug: working-memory-capacity
+        label: "Working memory and capacity limits"
+        side: neuro
+      - slug: executive-function
+        label: "Executive function and task switching"
+        side: neuro
+        aliases: ["cognitive control", "Stroop"]
+      - slug: basal-ganglia-gating
+        label: "Basal ganglia gating of working memory"
+        side: neuro
+      - slug: self-attention
+        label: "Self-attention: queries, keys, values"
+        side: ai
+        aliases: ["QKV", "scaled dot-product attention"]
+      - slug: multi-head-attention
+        label: "Multi-head attention"
+        side: ai
+      - slug: context-window
+        label: "Context windows and their limits"
+        side: ai
+        aliases: ["KV cache", "context length"]
+      - slug: attention-analogy-limits
+        label: "How far the attention analogy actually goes"
+        side: bridge
+
+  # -------------------------------------------------------------------------
+  - id: u09
+    week: 9
+    title: "Action, planning, robotics, and brain–computer interfaces"
+    topics:
+      - slug: motor-cortex
+        label: "Motor cortex and movement coding"
+        side: neuro
+        aliases: ["population vector", "M1"]
+      - slug: cerebellum
+        label: "Cerebellum and error-based motor learning"
+        side: neuro
+      - slug: basal-ganglia-action-selection
+        label: "Basal ganglia and action selection"
+        side: neuro
+      - slug: forward-and-inverse-models
+        label: "Forward and inverse models"
+        side: bridge
+        aliases: ["efference copy", "internal models"]
+      - slug: motor-learning
+        label: "Motor learning and adaptation"
+        side: neuro
+      - slug: policies-and-value-functions
+        label: "Policies and value functions"
+        side: ai
+      - slug: planning-and-search
+        label: "Planning, search and rollouts"
+        side: ai
+        aliases: ["MCTS", "tree search"]
+      - slug: robotics-embodied-ai
+        label: "Robotics and embodied AI"
+        side: ai
+        aliases: ["sim2real", "sensorimotor loop"]
+      - slug: bci-decoding
+        label: "Brain–computer interface decoding"
+        side: bridge
+        aliases: ["BCI", "neural decoder"]
+      - slug: neuroprosthetics
+        label: "Neuroprosthetics and closed-loop control"
+        side: bridge
+        aliases: ["invasive vs noninvasive BCI"]
+
+  # -------------------------------------------------------------------------
+  - id: u10
+    week: 10
+    title: "Consciousness and agency"
+    topics:
+      - slug: neural-correlates-of-consciousness
+        label: "Neural correlates of consciousness"
+        side: neuro
+        aliases: ["NCC", "binocular rivalry", "no-report paradigms"]
+      - slug: global-workspace-theory
+        label: "Global workspace theory"
+        side: bridge
+        aliases: ["GWT", "global neuronal workspace"]
+      - slug: integrated-information-theory
+        label: "Integrated information theory"
+        side: bridge
+        aliases: ["IIT", "phi"]
+      - slug: higher-order-theories
+        label: "Higher-order theories of consciousness"
+        side: neuro
+      - slug: access-vs-phenomenal
+        label: "Access vs. phenomenal consciousness"
+        side: bridge
+      - slug: hard-problem
+        label: "The hard problem of consciousness"
+        side: bridge
+      - slug: functionalism-and-substrate
+        label: "Functionalism and substrate independence"
+        side: bridge
+      - slug: sense-of-agency
+        label: "Sense of agency and volition"
+        side: neuro
+      - slug: self-models
+        label: "Self-models"
+        side: bridge
+      - slug: machine-consciousness
+        label: "Machine consciousness: claims and criteria"
+        side: ai
+
+  # -------------------------------------------------------------------------
+  - id: u11
+    week: 11
+    title: "Energy, metabolism, and the physical limits of intelligence"
+    topics:
+      - slug: brain-energy-budget
+        label: "The brain's energy budget"
+        side: neuro
+        aliases: ["20 watts", "glucose metabolism"]
+      - slug: metabolic-cost-of-spiking
+        label: "Metabolic cost of spiking and sparse firing"
+        side: neuro
+      - slug: wiring-cost-minimization
+        label: "Wiring cost minimization"
+        side: neuro
+      - slug: energy-efficiency-comparison
+        label: "Brains vs. chips: energy efficiency compared"
+        side: bridge
+      - slug: thermodynamics-of-computation
+        label: "Thermodynamics of computation"
+        side: bridge
+        aliases: ["Landauer limit"]
+      - slug: neuromorphic-computing
+        label: "Neuromorphic computing"
+        side: ai
+      - slug: spiking-neural-networks
+        label: "Spiking neural networks"
+        side: bridge
+        aliases: ["SNN"]
+      - slug: von-neumann-bottleneck
+        label: "The von Neumann bottleneck and memory-compute separation"
+        side: ai
+      - slug: training-vs-inference-cost
+        label: "Training vs. inference cost"
+        side: ai
+      - slug: ai-energy-footprint
+        label: "Energy and water footprint of AI at scale"
+        side: ai
+        aliases: ["datacenter energy"]
+
+  # -------------------------------------------------------------------------
+  - id: u12
+    week: 12
+    title: "Brains, Machines, and the Future of Intelligent Systems"
+    topics:
+      - slug: agi-definitions-and-timelines
+        label: "AGI: definitions, claims, timelines"
+        side: ai
+      - slug: interpretability
+        label: "Interpretability and mechanistic understanding"
+        side: bridge
+        aliases: ["mechanistic interpretability", "explainability"]
+      - slug: alignment
+        label: "Alignment and controllability"
+        side: ai
+      - slug: ai-risk
+        label: "AI risk: near-term and long-term framings"
+        side: ai
+      - slug: bias-and-fairness
+        label: "Bias and fairness in AI systems"
+        side: ai
+      - slug: labor-and-economic-impact
+        label: "Labor and economic impact"
+        side: ai
+      - slug: governance-and-regulation
+        label: "Governance and regulation"
+        side: ai
+      - slug: neurorights-and-privacy
+        label: "Neurorights and mental privacy"
+        side: bridge
+      - slug: cognitive-enhancement
+        label: "Cognitive enhancement"
+        side: bridge
+      - slug: human-ai-collaboration
+        label: "Human–AI collaboration"
+        side: bridge
+      - slug: limits-of-the-brain-ai-analogy
+        label: "Limits of the brain–AI analogy"
+        side: bridge
