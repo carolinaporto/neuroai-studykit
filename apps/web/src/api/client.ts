@@ -1,6 +1,7 @@
 import type {
   GenerateResponse,
   HomeworkOut,
+  ItemSourceResponse,
   NoteCreateRequest,
   NoteOut,
   QuizReviewResponse,
@@ -145,4 +146,11 @@ export function startQuiz(body: StartQuizRequest): Promise<StartQuizResponse> {
 
 export function reviewQuiz(quizAttemptId: string): Promise<QuizReviewResponse> {
   return get(`/api/study/quiz/${quizAttemptId}`)
+}
+
+// "I don't know this one" — the passage the item is anchored to, no rubric/reference
+// answer attached. See ItemSourceResponse's docstring on the backend for why this is
+// different from a reveal-the-answer button.
+export function getItemSource(itemId: string): Promise<ItemSourceResponse> {
+  return get(`/api/study/items/${itemId}/source`)
 }

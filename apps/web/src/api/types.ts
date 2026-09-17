@@ -183,3 +183,8 @@ export interface QuizReviewResponse {
   items: StudyQueueItem[]
   results: QuizReviewItem[]
 }
+
+export interface ItemSourceResponse {
+  locator: Locator
+  text: string
+}

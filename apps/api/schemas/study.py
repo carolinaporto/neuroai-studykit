@@ -121,3 +121,14 @@ class QuizReviewResponse(BaseModel):
     quiz_attempt: QuizAttemptOut
     items: list[StudyQueueItem]
     results: list[QuizReviewItem]
+
+
+class ItemSourceResponse(BaseModel):
+    """The passage an item is anchored to — for "I don't know this, let me read it" during
+    a quiz. Deliberately just the locator + full chunk text: no rubric, no reference_answer.
+    Reading the class material isn't the same as being handed the gabarito, which is why
+    this doesn't violate the "no reveal button" rule — the item still has to be answered for
+    real afterward for the attempt to count it graded."""
+
+    locator: dict
+    text: str

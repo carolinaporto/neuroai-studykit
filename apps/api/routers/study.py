@@ -30,6 +30,7 @@ from apps.api.core.config import settings
 from apps.api.core.db import get_session
 from apps.api.core.deps import get_current_user_id, get_llm_client, require_owner
 from apps.api.schemas.study import (
+    ItemSourceResponse,
     QuizAttemptOut,
     QuizReviewItem,
     QuizReviewResponse,
@@ -89,6 +90,24 @@ async def start_session(
 
     items = (await session.scalars(stmt)).all()
     return [_queue_item(item) for item in items]
+
+
+@router.get("/items/{item_id}/source", response_model=ItemSourceResponse)
+async def get_item_source(
+    item_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> ItemSourceResponse:
+    """"I don't know this one" — the passage an item is anchored to, with no LLM call and
+    no rubric/reference_answer attached. See `ItemSourceResponse`'s docstring for why this
+    is not the same thing as a reveal-the-answer button."""
+    item = await session.get(Item, item_id)
+    if item is None or not item.chunk_ids:
+        raise HTTPException(status_code=404, detail="item not found")
+    chunk = await session.get(Chunk, item.chunk_ids[0])
+    if chunk is None:
+        raise HTTPException(status_code=404, detail="source chunk not found")
+    locator = chunk.locators[0] if chunk.locators else {}
+    return ItemSourceResponse(locator=locator, text=chunk.text)
 
 
 def _source_excerpts(item: Item, chunks: list[Chunk]) -> list[SourceExcerpt]:

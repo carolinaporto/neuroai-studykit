@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { reviewQuiz, submitStudyAnswer } from '../api/client'
-import type { QuizReviewItem, RubricHit, StudyAnswerResponse } from '../api/types'
+import { getItemSource, reviewQuiz, submitStudyAnswer } from '../api/client'
+import type { QuizReviewItem, RubricHit, StudyAnswerResponse, StudyQueueItem } from '../api/types'
 import { Button } from '../components/Button'
 import { formatLocator } from '../lib/locator'
 import './QuizAttemptPage.css'
@@ -74,12 +74,49 @@ function ReviewItemCard({ item }: { item: QuizReviewItem }) {
   )
 }
 
+// "I don't know this one" — shows the passage the skipped item is anchored to, not the
+// gabarito (no rubric, no reference_answer: see ItemSourceResponse's docstring on the
+// backend). The item itself moves to the end of the queue in the parent's ordering, so
+// this is a detour, not a way out — it still has to be answered for real before the quiz
+// counts it graded.
+function ReadingPanel({
+  itemId,
+  prompt,
+  onContinue,
+}: {
+  itemId: string
+  prompt: string | undefined
+  onContinue: () => void
+}) {
+  const query = useQuery({
+    queryKey: ['item-source', itemId],
+    queryFn: () => getItemSource(itemId),
+  })
+
+  return (
+    <div className="quiz-reading">
+      {prompt && <p className="caption quiz-reading-prompt">Skipped: {prompt}</p>}
+      {query.isLoading && <p className="body">Loading…</p>}
+      {query.isError && <p className="body">{(query.error as Error).message}</p>}
+      {query.data && (
+        <div className="quiz-result">
+          <p className="caption quiz-source">{formatLocator(query.data.locator)}</p>
+          <p className="body-sm">{query.data.text}</p>
+        </div>
+      )}
+      <Button onClick={onContinue}>Continue (Space)</Button>
+    </div>
+  )
+}
+
 export function QuizAttemptPage() {
   const { attemptId } = useParams<{ attemptId: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [responseText, setResponseText] = useState('')
   const [lastResult, setLastResult] = useState<StudyAnswerResponse | null>(null)
+  const [skippedIds, setSkippedIds] = useState<string[]>([])
+  const [readingItemId, setReadingItemId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const query = useQuery({
@@ -98,13 +135,25 @@ export function QuizAttemptPage() {
     },
   })
 
-  const remaining = useMemo(() => {
+  // Skipped items sink to the end of the queue instead of disappearing — "pull the item
+  // I'm stuck on to the back of the line" rather than "let me skip it for good".
+  const orderedRemaining = useMemo(() => {
     if (!query.data) return []
     const answeredIds = new Set(query.data.results.map((r) => r.item_id))
-    return query.data.items.filter((item) => !answeredIds.has(item.id))
-  }, [query.data])
+    const notAnswered = query.data.items.filter((item) => !answeredIds.has(item.id))
+    const notAnsweredIds = new Set(notAnswered.map((item) => item.id))
+    const stillSkippedIds = skippedIds.filter((id) => notAnsweredIds.has(id))
+    const stillSkippedSet = new Set(stillSkippedIds)
+    const notSkipped = notAnswered.filter((item) => !stillSkippedSet.has(item.id))
+    const byId = new Map(notAnswered.map((item) => [item.id, item]))
+    const stillSkipped = stillSkippedIds
+      .map((id) => byId.get(id))
+      .filter((item): item is StudyQueueItem => item !== undefined)
+    return [...notSkipped, ...stillSkipped]
+  }, [query.data, skippedIds])
 
-  const currentItem = remaining[0]
+  const currentItem = orderedRemaining[0]
+  const currentItemWasSkipped = currentItem !== undefined && skippedIds.includes(currentItem.id)
 
   function handleSubmit() {
     if (!currentItem || !attemptId || responseText.trim() === '' || answerMutation.isPending) return
@@ -115,6 +164,17 @@ export function QuizAttemptPage() {
     })
   }
 
+  function handleSkip() {
+    if (!currentItem) return
+    setSkippedIds((prev) => (prev.includes(currentItem.id) ? prev : [...prev, currentItem.id]))
+    setReadingItemId(currentItem.id)
+  }
+
+  function handleContinueReading() {
+    setReadingItemId(null)
+    textareaRef.current?.focus()
+  }
+
   function handleContinue() {
     setLastResult(null)
     textareaRef.current?.focus()
@@ -122,6 +182,13 @@ export function QuizAttemptPage() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (readingItemId !== null) {
+        if (e.key === ' ' && !isEditableTarget(e.target)) {
+          e.preventDefault()
+          handleContinueReading()
+        }
+        return
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !lastResult) {
         e.preventDefault()
         handleSubmit()
@@ -166,13 +233,20 @@ export function QuizAttemptPage() {
     <div className="quiz-take">
       <p className="caption">
         Week {quiz_attempt.week} · question {results.length + 1} of {quiz_attempt.item_count}
+        {currentItemWasSkipped && readingItemId === null && ' · revisiting a skipped question'}
       </p>
 
-      {lastResult ? (
+      {readingItemId ? (
+        <ReadingPanel
+          itemId={readingItemId}
+          prompt={query.data.items.find((item) => item.id === readingItemId)?.prompt}
+          onContinue={handleContinueReading}
+        />
+      ) : lastResult ? (
         <>
           <AnswerResult result={lastResult} />
           <Button onClick={handleContinue}>
-            {remaining.length > 1 ? 'Next question (Space)' : 'Finish (Space)'}
+            {orderedRemaining.length > 1 ? 'Next question (Space)' : 'Finish (Space)'}
           </Button>
         </>
       ) : currentItem ? (
@@ -186,12 +260,19 @@ export function QuizAttemptPage() {
             onChange={(e) => setResponseText(e.target.value)}
             autoFocus
           />
-          <Button
-            onClick={handleSubmit}
-            disabled={responseText.trim() === '' || answerMutation.isPending}
-          >
-            {answerMutation.isPending ? 'Grading…' : 'Submit (Ctrl+Enter)'}
-          </Button>
+          <div className="quiz-actions">
+            <Button
+              onClick={handleSubmit}
+              disabled={responseText.trim() === '' || answerMutation.isPending}
+            >
+              {answerMutation.isPending ? 'Grading…' : 'Submit (Ctrl+Enter)'}
+            </Button>
+            {!currentItemWasSkipped && (
+              <Button variant="secondary" onClick={handleSkip} disabled={answerMutation.isPending}>
+                I don't know this — show me the material
+              </Button>
+            )}
+          </div>
           {answerMutation.isError && (
             <p className="caption quiz-error">{(answerMutation.error as Error).message}</p>
           )}

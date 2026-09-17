@@ -328,6 +328,32 @@ async def test_session_returns_queue_without_rubric_or_reference_answer() -> Non
 
 
 @pytest.mark.asyncio
+async def test_get_item_source_returns_chunk_text_without_gabarito() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    item_id, source_id = await _make_item(session_factory)
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.get(f"/api/study/items/{item_id}/source")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["locator"] == {"page": 7}
+            assert body["text"] == CHUNK_TEXT
+            assert "rubric" not in body
+            assert "reference_answer" not in body
+    finally:
+        await _cleanup(session_factory, source_id)
+
+
+@pytest.mark.asyncio
+async def test_get_item_source_404_for_unknown_item() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    async with _test_client(session_factory) as client:
+        resp = await client.get(f"/api/study/items/{uuid.uuid4()}/source")
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_patch_item_updates_status() -> None:
     session_factory = make_session_factory(DbSettings().database_url)
     item_id, source_id = await _make_item(session_factory)
