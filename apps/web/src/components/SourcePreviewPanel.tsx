@@ -10,9 +10,11 @@ const EMBEDDABLE_KINDS = new Set(['lecture_pdf', 'paper'])
 
 export function SourcePreviewPanel({
   sourceId,
+  widthPx,
   onClose,
 }: {
   sourceId: string
+  widthPx: number
   onClose: () => void
 }) {
   const query = useQuery({
@@ -21,7 +23,7 @@ export function SourcePreviewPanel({
   })
 
   return (
-    <aside className="source-preview">
+    <aside className="source-preview" style={{ width: widthPx }}>
       <div className="source-preview-header">
         <h2 className="h3 source-preview-title">{query.data?.title ?? 'Loading…'}</h2>
         <button

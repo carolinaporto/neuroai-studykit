@@ -1,10 +1,34 @@
 .sources-layout {
   display: flex;
-  gap: var(--space-5);
-  align-items: flex-start;
+  height: 100%;
+  align-items: stretch;
 }
 
 .sources-main {
-  flex: 2 1 480px;
+  flex: 1;
   min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding-right: var(--space-4);
+}
+
+.sources-resize-handle {
+  width: 10px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  position: relative;
+}
+
+.sources-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: var(--border-subtle);
+}
+
+.sources-resize-handle:hover::after {
+  background: var(--accent-neuro);
 }
