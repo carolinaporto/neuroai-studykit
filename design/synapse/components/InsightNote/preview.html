@@ -1,0 +1,24 @@
+<!-- @dsCard group="Content" height=250 subtitle="A note or insight, tagged by which lens of the course it belongs to" -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  .in-wrap { display:flex; justify-content:center; padding: var(--space-5) var(--space-4); font-family: var(--font-sans); }
+  .in-card { width:360px; background: var(--surface-100); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: var(--space-4); box-sizing:border-box; }
+  .in-top { display:flex; align-items:center; justify-content:space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
+  .in-disc { background: var(--surface-200); color: var(--ink-soft); padding: 3px var(--space-2); border-radius: var(--radius-pill); text-transform: uppercase; }
+  .in-badge { display:inline-flex; align-items:center; gap:4px; background: var(--surface-200); color: var(--ink-soft); padding: 3px var(--space-2); border-radius: var(--radius-pill); text-transform: uppercase; }
+  .in-badge svg { width:11px; height:11px; }
+  .in-title { color: var(--ink); margin-bottom: var(--space-2); }
+  .in-excerpt { color: var(--ink); }
+  .in-foot { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); color: var(--ink-soft); }
+</style>
+<div class="in-wrap">
+  <div class="in-card">
+    <div class="in-top">
+      <span class="in-disc tag">Neuroscience · ML</span>
+      <span class="in-badge tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>Private</span>
+    </div>
+    <div class="h3 in-title">Synaptic pruning ≈ dropout</div>
+    <p class="body-sm in-excerpt">Both remove weak connections to improve generalization — pruning during development, dropout during training. The parallel the professor drew in Lecture 5 is closer than it first looks.</p>
+    <div class="caption in-foot">Linked to Week 5 · Sep 12</div>
+  </div>
+</div>

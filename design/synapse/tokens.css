@@ -1,0 +1,69 @@
+/* Synapse — compiled design tokens.
+   Source of truth is tokens.json; this file is the ready-to-use CSS form of it.
+   Load the fonts first (Google Fonts) wherever this stylesheet is used. */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root,
+[data-theme="light"] {
+  /* Color */
+  --ink: #211D1A;
+  --ink-soft: #6B6259;
+  --surface-50: #FAF7F1;
+  --surface-100: #FFFFFF;
+  --surface-200: #F1ECE3;
+  --border-subtle: #E7E0D4;
+  --border-strong: #8F8371;
+  --accent-neuro: #33477A;
+  --accent-neuro-soft: #E5E8F2;
+  --accent-warm: #8A3A2C;
+  --accent-warm-soft: #F3E3DE;
+  --success: #1F6B5C;
+  --danger: #C4432C;
+  --on-fill: #FFFFFF;
+  --focus-ring: var(--accent-neuro);
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(33, 29, 26, 0.06), 0 1px 1px rgba(33, 29, 26, 0.05);
+  --shadow-md: 0 12px 28px rgba(33, 29, 26, 0.12);
+}
+
+:root {
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Font families */
+  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+/* Type styles — Heading group (serif) */
+.display { font-family: var(--font-serif); font-size: 44px; line-height: 50px; font-weight: 500; }
+.h1      { font-family: var(--font-serif); font-size: 30px; line-height: 38px; font-weight: 500; }
+.h2      { font-family: var(--font-serif); font-size: 23px; line-height: 30px; font-weight: 500; }
+.h3      { font-family: var(--font-serif); font-size: 18px; line-height: 26px; font-weight: 600; }
+
+/* Type styles — Text group (sans) */
+.body    { font-family: var(--font-sans); font-size: 15px; line-height: 24px; font-weight: 400; }
+.body-sm { font-family: var(--font-sans); font-size: 13px; line-height: 20px; font-weight: 400; }
+.label   { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; } /* apply text-transform: uppercase where used */
+.caption { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.button  { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 600; }
+
+/* Type styles — Code group (mono) */
+.tag     { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.03em; }
+.code    { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }

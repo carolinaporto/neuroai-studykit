@@ -1,0 +1,57 @@
+<!-- @dsCard height=288 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:wght@500&family=IBM+Plex+Sans:wght@400&display=swap">
+<style>
+  html, body { margin:0; padding:0; }
+  .cover-frame { width:960px; height:288px; }
+  .ground { fill: var(--surface-50); }
+  .neuro { fill: var(--accent-neuro); }
+  .warm { fill: var(--accent-warm); }
+  .ink-block { fill: var(--ink); }
+  .tint { fill: var(--accent-neuro-soft); }
+  .node { fill: var(--surface-50); }
+  .link { stroke: var(--surface-50); stroke-width: 1.6; }
+  .name { fill: var(--ink); font-family: var(--font-serif); font-weight: 500; }
+  .tagline { fill: var(--ink-soft); font-family: var(--font-sans); font-weight: 400; }
+</style>
+<!--
+  blocks: accent-neuro slab 192×288 (space-8×3 wide, full height, radius-lg) · accent-warm satellite 264×128 (radius-lg) · ink satellite 144×136 (radius-lg) · accent-neuro-soft satellite 96×136 (radius-lg)
+  arrangement: one tall accent-neuro slab (the system's most-repeated interactive hue) with three satellites stacked beside it; accent-warm leads the satellite row because it is the identity-defining "Harvard, quietly" hue even though the UI spends it sparingly
+  pattern: a literal motif — nodes and synaptic connections cut in surface-50 out of the accent-neuro slab, the same node-and-line mark used as the SiteNav brand glyph, standing in for the name itself
+  scales: gaps at space-5 (24px); slab width space-8×3 (192px); satellite row heights space-8×2 (128px) and the 288px remainder (136px); node radii and stroke drawn from radius-sm/radius-md
+-->
+<svg class="cover-frame" viewBox="0 0 960 288" xmlns="http://www.w3.org/2000/svg">
+  <rect class="ground" x="0" y="0" width="960" height="288"/>
+
+  <rect class="neuro" x="480" y="0" width="192" height="288" rx="16"/>
+  <rect class="warm" x="696" y="0" width="264" height="128" rx="16"/>
+  <rect class="ink-block" x="696" y="152" width="144" height="136" rx="16"/>
+  <rect class="tint" x="864" y="152" width="96" height="136" rx="16"/>
+
+  <g>
+    <line class="link" x1="520" y1="40" x2="590" y2="30"/>
+    <line class="link" x1="590" y1="30" x2="650" y2="60"/>
+    <line class="link" x1="520" y1="40" x2="505" y2="110"/>
+    <line class="link" x1="505" y1="110" x2="575" y2="120"/>
+    <line class="link" x1="590" y1="30" x2="575" y2="120"/>
+    <line class="link" x1="575" y1="120" x2="635" y2="150"/>
+    <line class="link" x1="505" y1="110" x2="515" y2="190"/>
+    <line class="link" x1="575" y1="120" x2="600" y2="210"/>
+    <line class="link" x1="515" y1="190" x2="555" y2="250"/>
+    <line class="link" x1="600" y1="210" x2="555" y2="250"/>
+    <line class="link" x1="555" y1="250" x2="645" y2="240"/>
+    <line class="link" x1="635" y1="150" x2="600" y2="210"/>
+    <circle class="node" cx="520" cy="40" r="7"/>
+    <circle class="node" cx="590" cy="30" r="5"/>
+    <circle class="node" cx="650" cy="60" r="6"/>
+    <circle class="node" cx="505" cy="110" r="5"/>
+    <circle class="node" cx="575" cy="120" r="8"/>
+    <circle class="node" cx="635" cy="150" r="5"/>
+    <circle class="node" cx="515" cy="190" r="6"/>
+    <circle class="node" cx="600" cy="210" r="5"/>
+    <circle class="node" cx="555" cy="250" r="7"/>
+    <circle class="node" cx="645" cy="240" r="4"/>
+  </g>
+
+  <text class="name" x="48" y="210" font-size="100">Synapse</text>
+  <text class="tagline" x="48" y="248" font-size="14">A study kit for natural and artificial intelligence</text>
+</svg>

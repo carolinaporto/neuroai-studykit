@@ -1,0 +1,5 @@
+One button, four states, used across the sign-in panel, QuizCard and any destructive action. All set in `button` (14px, weight 600), `radius-md`, `space-2 space-4` padding.
+
+`Primary` — `accent-neuro` fill, `on-fill` text; the one action per view that moves the visitor forward (start a quiz, sign in). `Secondary` — transparent with a `border-strong` outline, `ink` text; anything reversible or secondary in priority (review answers, cancel). `Danger` — `danger` fill, `on-fill` text; reserved for a destructive confirm (delete a note or a homework draft), never for "incorrect answer" — that stays inside `QuizCard`. `Disabled` — `surface-200` fill, `ink-soft` text, `cursor: not-allowed`; used for the locked-quiz button rather than dimming a primary button's opacity, so a disabled button never looks like a themed variant of `accent-neuro`.
+
+Never combine `accent-warm` with this component — a public/portfolio action reads as a link (see `HomeworkCard`), not a warm-colored button, so `accent-warm` never appears as a button fill.

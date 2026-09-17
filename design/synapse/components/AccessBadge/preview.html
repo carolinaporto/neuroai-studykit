@@ -1,0 +1,19 @@
+<!-- @dsCard group="Foundations" height=100 subtitle="The shared Public / Private primitive — used on nav items, notes and homework" -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  .ab-wrap { display:flex; gap: var(--space-4); justify-content:center; align-items:center; padding: var(--space-6) 0; font-family: var(--font-mono); }
+  .ab-badge { display:inline-flex; align-items:center; gap: var(--space-1); padding: 4px var(--space-3); border-radius: var(--radius-pill); text-transform: uppercase; }
+  .ab-badge svg { width:12px; height:12px; flex-shrink:0; }
+  .ab-badge.public { background: var(--accent-warm-soft); color: var(--accent-warm); }
+  .ab-badge.private { background: var(--surface-200); color: var(--ink-soft); }
+</style>
+<div class="ab-wrap">
+  <span class="ab-badge public tag">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M9 10V7a3 3 0 0 1 5.5-1.7"/></svg>
+    Public
+  </span>
+  <span class="ab-badge private tag">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>
+    Private
+  </span>
+</div>

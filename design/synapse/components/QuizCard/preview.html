@@ -1,0 +1,57 @@
+<!-- @dsCard group="Content" height=330 subtitle="The start-of-class recall check — locked, available, completed" -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  .qc-wrap { display:flex; gap: var(--space-5); justify-content:center; flex-wrap:wrap; padding: var(--space-5) var(--space-4); font-family: var(--font-sans); }
+  .qc-card { width:224px; background: var(--surface-100); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: var(--space-4); box-sizing:border-box; display:flex; flex-direction:column; gap: var(--space-3); }
+  .qc-top { display:flex; align-items:center; gap: var(--space-2); }
+  .qc-wk { background: var(--surface-200); color: var(--ink-soft); padding: 2px var(--space-2); border-radius: var(--radius-pill); }
+  .qc-eyebrow { color: var(--ink-soft); text-transform:uppercase; }
+  .qc-title { color: var(--ink); margin-top: -2px; }
+  .qc-body { flex:1; display:flex; flex-direction:column; align-items:center; text-align:center; justify-content:center; gap: var(--space-2); padding: var(--space-2) 0; }
+  .qc-icon { width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .qc-icon.locked { background: var(--surface-200); color: var(--ink-soft); }
+  .qc-icon.ready { background: var(--accent-neuro-soft); color: var(--accent-neuro); }
+  .qc-icon svg { width:24px; height:24px; }
+  .qc-score { width:60px; height:60px; border-radius:50%; border: 3px solid var(--success); display:flex; align-items:center; justify-content:center; color: var(--success); font-family: var(--font-mono); font-size:16px; font-weight:500; }
+  .qc-meta { color: var(--ink-soft); }
+  .qc-btn { all:unset; box-sizing:border-box; display:block; width:100%; text-align:center; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); cursor:pointer; }
+  .qc-btn.primary { background: var(--accent-neuro); color: var(--on-fill); }
+  .qc-btn.secondary { background: transparent; border: 1px solid var(--border-strong); color: var(--ink); }
+  .qc-btn.disabled { background: var(--surface-200); color: var(--ink-soft); cursor:not-allowed; display:flex; align-items:center; justify-content:center; gap: var(--space-1); }
+  .qc-btn.disabled svg { width:13px; height:13px; }
+  .qc-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+</style>
+<div class="qc-wrap">
+  <div class="qc-card">
+    <div class="qc-top"><span class="qc-wk tag">WK 04</span><span class="caption qc-eyebrow">Recall check</span></div>
+    <div class="h3 qc-title">Week 4 Quiz</div>
+    <div class="qc-body">
+      <div class="qc-icon locked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg></div>
+      <div class="caption qc-meta">Unlocks after this week's homework</div>
+    </div>
+    <button class="qc-btn disabled button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="9" rx="1.5"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>
+      Locked
+    </button>
+  </div>
+
+  <div class="qc-card">
+    <div class="qc-top"><span class="qc-wk tag">WK 03</span><span class="caption qc-eyebrow">Recall check</span></div>
+    <div class="h3 qc-title">Week 3 Quiz</div>
+    <div class="qc-body">
+      <div class="qc-icon ready"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M9 12.5l2 2 4-4.5"/></svg></div>
+      <div class="caption qc-meta">10 questions · about 8 min</div>
+    </div>
+    <button class="qc-btn primary button">Start quiz</button>
+  </div>
+
+  <div class="qc-card">
+    <div class="qc-top"><span class="qc-wk tag">WK 02</span><span class="caption qc-eyebrow">Recall check</span></div>
+    <div class="h3 qc-title">Week 2 Quiz</div>
+    <div class="qc-body">
+      <div class="qc-score">8/10</div>
+      <div class="caption qc-meta">Completed Sep 10</div>
+    </div>
+    <button class="qc-btn secondary button">Review answers</button>
+  </div>
+</div>
