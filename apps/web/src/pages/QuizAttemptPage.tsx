@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { getItemSource, reviewQuiz, submitStudyAnswer } from '../api/client'
+import { reviewQuiz, submitStudyAnswer } from '../api/client'
 import type { QuizReviewItem, RubricHit, StudyAnswerResponse, StudyQueueItem } from '../api/types'
 import { Button } from '../components/Button'
-import { formatLocator } from '../lib/locator'
+import { SourcePassage } from '../components/SourcePassage'
 import './QuizAttemptPage.css'
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -30,7 +30,13 @@ function RubricList({ hits }: { hits: RubricHit[] }) {
   )
 }
 
-function AnswerResult({ result }: { result: StudyAnswerResponse }) {
+// Original passage first (the actual class material, highlighted where the rubric points
+// to it), the model's own writing — feedback, reference answer — clearly labeled and last.
+// Was the other way around before: reference_answer/feedback_md are LLM-composed text, not
+// anything from the document, and showing them first read as "the app summarizing my
+// upload," which is exactly backwards from what a recall check should show.
+function AnswerResult({ itemId, result }: { itemId: string; result: StudyAnswerResponse }) {
+  const quotes = result.source.map((excerpt) => excerpt.quote)
   return (
     <div className="quiz-result">
       <p className="body">
@@ -38,23 +44,23 @@ function AnswerResult({ result }: { result: StudyAnswerResponse }) {
         {result.cached && <span className="caption"> (cache)</span>}
       </p>
       <RubricList hits={result.rubric_hits} />
-      {result.misconceptions.length > 0 && (
-        <p className="body-sm">Misconceptions: {result.misconceptions.join('; ')}</p>
-      )}
-      <p className="body-sm">{result.feedback_md}</p>
-      <p className="body-sm">
-        <strong>Reference answer:</strong> {result.reference_answer}
-      </p>
-      {result.source.map((excerpt, i) => (
-        <p key={i} className="caption quiz-source">
-          {formatLocator(excerpt.locator)} — "{excerpt.quote}"
+      <SourcePassage itemId={itemId} quotes={quotes} />
+      <div className="quiz-summary">
+        <p className="label quiz-summary-label">Summary</p>
+        {result.misconceptions.length > 0 && (
+          <p className="body-sm">Misconceptions: {result.misconceptions.join('; ')}</p>
+        )}
+        <p className="body-sm">{result.feedback_md}</p>
+        <p className="body-sm">
+          <strong>Reference answer:</strong> {result.reference_answer}
         </p>
-      ))}
+      </div>
     </div>
   )
 }
 
 function ReviewItemCard({ item }: { item: QuizReviewItem }) {
+  const quotes = item.source.map((excerpt) => excerpt.quote)
   return (
     <div className="quiz-result">
       <p className="body">
@@ -62,14 +68,13 @@ function ReviewItemCard({ item }: { item: QuizReviewItem }) {
       </p>
       <p className="body-sm">Your answer: {item.response_text}</p>
       <RubricList hits={item.rubric_hits} />
-      <p className="body-sm">
-        <strong>Reference answer:</strong> {item.reference_answer}
-      </p>
-      {item.source.map((excerpt, i) => (
-        <p key={i} className="caption quiz-source">
-          {formatLocator(excerpt.locator)} — "{excerpt.quote}"
+      <SourcePassage itemId={item.item_id} quotes={quotes} />
+      <div className="quiz-summary">
+        <p className="label quiz-summary-label">Summary</p>
+        <p className="body-sm">
+          <strong>Reference answer:</strong> {item.reference_answer}
         </p>
-      ))}
+      </div>
     </div>
   )
 }
@@ -88,22 +93,10 @@ function ReadingPanel({
   prompt: string | undefined
   onContinue: () => void
 }) {
-  const query = useQuery({
-    queryKey: ['item-source', itemId],
-    queryFn: () => getItemSource(itemId),
-  })
-
   return (
     <div className="quiz-reading">
       {prompt && <p className="caption quiz-reading-prompt">Skipped: {prompt}</p>}
-      {query.isLoading && <p className="body">Loading…</p>}
-      {query.isError && <p className="body">{(query.error as Error).message}</p>}
-      {query.data && (
-        <div className="quiz-result">
-          <p className="caption quiz-source">{formatLocator(query.data.locator)}</p>
-          <p className="body-sm">{query.data.text}</p>
-        </div>
-      )}
+      <SourcePassage itemId={itemId} quotes={[]} />
       <Button onClick={onContinue}>Continue (Space)</Button>
     </div>
   )
@@ -115,6 +108,7 @@ export function QuizAttemptPage() {
   const queryClient = useQueryClient()
   const [responseText, setResponseText] = useState('')
   const [lastResult, setLastResult] = useState<StudyAnswerResponse | null>(null)
+  const [lastAnsweredItemId, setLastAnsweredItemId] = useState<string | null>(null)
   const [skippedIds, setSkippedIds] = useState<string[]>([])
   const [readingItemId, setReadingItemId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -127,8 +121,9 @@ export function QuizAttemptPage() {
 
   const answerMutation = useMutation({
     mutationFn: submitStudyAnswer,
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       setLastResult(result)
+      setLastAnsweredItemId(variables.item_id)
       setResponseText('')
       queryClient.invalidateQueries({ queryKey: ['quiz-attempt', attemptId] })
       queryClient.invalidateQueries({ queryKey: ['quiz-weeks'] })
@@ -244,7 +239,7 @@ export function QuizAttemptPage() {
         />
       ) : lastResult ? (
         <>
-          <AnswerResult result={lastResult} />
+          <AnswerResult itemId={lastAnsweredItemId as string} result={lastResult} />
           <Button onClick={handleContinue}>
             {orderedRemaining.length > 1 ? 'Next question (Space)' : 'Finish (Space)'}
           </Button>

@@ -1,0 +1,28 @@
+.source-passage {
+  border-left: 3px solid var(--border-strong);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-50);
+  border-radius: var(--radius-sm);
+}
+
+.source-passage-label {
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 var(--space-2);
+}
+
+.source-passage-text {
+  font-family: var(--font-serif);
+  color: var(--ink);
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.source-highlight {
+  background: var(--surface-200);
+  color: var(--ink);
+  font-weight: 600;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
