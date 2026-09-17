@@ -90,7 +90,8 @@ export interface HomeworkOut {
 export interface NoteOut {
   id: string
   title: string
-  body: string
+  body: string | null
+  url: string | null
   disciplines: string[]
   week: number | null
   source_id: string | null
@@ -100,7 +101,8 @@ export interface NoteOut {
 
 export interface NoteCreateRequest {
   title: string
-  body: string
+  body?: string | null
+  url?: string | null
   disciplines: Discipline[]
   week?: number | null
   source_id?: string | null

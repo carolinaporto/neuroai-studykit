@@ -1,6 +1,6 @@
 .in-card {
   width: 100%;
-  max-width: 560px;
+  max-width: 380px;
   background: var(--surface-100);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -37,6 +37,20 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.in-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent-neuro);
+  text-decoration: none;
+  margin-top: var(--space-1);
+}
+
+.in-link svg {
+  width: 15px;
+  height: 15px;
 }
 
 .in-foot {

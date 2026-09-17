@@ -270,13 +270,20 @@ class Homework(UUIDPkMixin, CreatedAtMixin, Base):
 class Note(UUIDPkMixin, CreatedAtMixin, Base):
     """A personal note or "aha moment" — design/synapse's `InsightNote`. Unlike Homework,
     private is the default here (`is_public=False`): a note referencing locked lecture
-    content usually shouldn't be public, per the InsightNote README."""
+    content usually shouldn't be public, per the InsightNote README.
+
+    `url` is an optional outbound link (Google Drive, Docs, Notion — anything) to the actual
+    document: the user's own call that a note surviving the app going away someday matters
+    more than keeping every word of it in this database. `body` stays a short excerpt shown
+    on the card, not required to carry the full text — a note can be link-only, text-only,
+    or both, but not neither (enforced at the API layer, not here)."""
 
     __tablename__ = "note"
 
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"))
     title: Mapped[str] = mapped_column(String)
-    body: Mapped[str] = mapped_column(Text)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
     disciplines: Mapped[list[str]] = mapped_column(ARRAY(String))
     # Both optional and independent: a note can float free of any week/source, reference a
     # week in general, or point at one specific Source — never inferred from one another.

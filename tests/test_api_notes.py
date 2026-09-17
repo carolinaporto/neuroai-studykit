@@ -191,3 +191,73 @@ async def test_create_note_rejects_unknown_discipline() -> None:
     async with _test_client(session_factory) as client:
         resp = await client.post("/api/notes", json=body)
         assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_note_accepts_url_only_no_body() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    note_ids: list[uuid.UUID] = []
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        await session.commit()
+
+    body = {
+        "title": "Full write-up lives in Drive",
+        "url": "https://docs.google.com/document/d/abc123",
+        "disciplines": ["Psychology"],
+    }
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.post("/api/notes", json=body)
+            assert resp.status_code == 200
+            created = resp.json()
+            assert created["url"] == body["url"]
+            assert created["body"] is None
+            note_ids.append(uuid.UUID(created["id"]))
+    finally:
+        await _cleanup(session_factory, note_ids)
+
+
+@pytest.mark.asyncio
+async def test_create_note_rejects_neither_body_nor_url() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        await session.commit()
+
+    body = {"title": "Empty note", "disciplines": ["Neuroscience"]}
+    async with _test_client(session_factory) as client:
+        resp = await client.post("/api/notes", json=body)
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_patch_note_rejects_clearing_body_and_url_together() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    note_ids: list[uuid.UUID] = []
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        note = Note(
+            owner_id=owner_id,
+            title="Has only a body",
+            body="Some text.",
+            url=None,
+            disciplines=["Psychology"],
+        )
+        session.add(note)
+        await session.commit()
+        note_ids = [note.id]
+        note_id = note.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.patch(f"/api/notes/{note_id}", json={"body": None})
+            assert resp.status_code == 422
+    finally:
+        await _cleanup(session_factory, note_ids)

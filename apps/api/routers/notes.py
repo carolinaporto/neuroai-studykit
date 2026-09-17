@@ -68,6 +68,12 @@ async def patch_note(
     if "source_id" in updates and updates["source_id"] is not None:
         if await session.get(Source, updates["source_id"]) is None:
             raise HTTPException(status_code=422, detail="source_id does not exist")
+
+    new_body = updates.get("body", note.body)
+    new_url = updates.get("url", note.url)
+    if not new_body and not new_url:
+        raise HTTPException(status_code=422, detail="a note needs at least one of body or url")
+
     for field, value in updates.items():
         setattr(note, field, value)
 

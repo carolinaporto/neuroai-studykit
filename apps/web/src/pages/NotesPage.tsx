@@ -19,6 +19,7 @@ export function NotesPage() {
 
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [url, setUrl] = useState('')
   const [selected, setSelected] = useState<Discipline[]>([])
   const [isPublic, setIsPublic] = useState(false)
 
@@ -28,6 +29,7 @@ export function NotesPage() {
       queryClient.invalidateQueries({ queryKey: ['notes'] })
       setTitle('')
       setBody('')
+      setUrl('')
       setSelected([])
       setIsPublic(false)
     },
@@ -41,10 +43,19 @@ export function NotesPage() {
     )
   }
 
+  const canSubmit =
+    title.trim() !== '' && (body.trim() !== '' || url.trim() !== '') && selected.length > 0
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (title.trim() === '' || body.trim() === '' || selected.length === 0) return
-    createMutation.mutate({ title, body, disciplines: selected, is_public: isPublic })
+    if (!canSubmit) return
+    createMutation.mutate({
+      title,
+      body: body.trim() === '' ? null : body,
+      url: url.trim() === '' ? null : url,
+      disciplines: selected,
+      is_public: isPublic,
+    })
   }
 
   const notes = notesQuery.data ?? []
@@ -60,9 +71,15 @@ export function NotesPage() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
+        <input
+          className="note-input"
+          placeholder="Link (Google Drive, Docs, Notion…) — optional if you write below"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
         <textarea
           className="note-textarea"
-          placeholder="What did you notice?"
+          placeholder="Short excerpt or the note itself — optional if you linked a document above"
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
@@ -86,21 +103,16 @@ export function NotesPage() {
           />
           Make this note public
         </label>
-        <Button
-          type="submit"
-          disabled={
-            createMutation.isPending ||
-            title.trim() === '' ||
-            body.trim() === '' ||
-            selected.length === 0
-          }
-        >
+        <Button type="submit" disabled={createMutation.isPending || !canSubmit}>
           {createMutation.isPending ? 'Saving…' : 'Add note'}
         </Button>
+        {createMutation.isError && (
+          <p className="caption note-error">{(createMutation.error as Error).message}</p>
+        )}
       </form>
 
       {notes.length === 0 && <p className="body">No notes yet.</p>}
-      <div className="notes-list">
+      <div className="notes-grid">
         {notes.map((note) => (
           <InsightNote
             key={note.id}
@@ -108,6 +120,7 @@ export function NotesPage() {
             isPublic={note.is_public}
             title={note.title}
             body={note.body}
+            url={note.url}
             week={note.week}
             createdAt={note.created_at}
           />

@@ -1,9 +1,9 @@
 .app-shell {
   display: flex;
   gap: var(--space-5);
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: var(--space-5);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-5) var(--space-6);
   align-items: flex-start;
   min-height: 100%;
 }
