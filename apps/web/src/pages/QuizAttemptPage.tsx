@@ -206,7 +206,7 @@ export function QuizAttemptPage() {
 
   if (quiz_attempt.status === 'completed') {
     return (
-      <div>
+      <div className="page">
         <p className="caption">Week {quiz_attempt.week} Quiz — Review</p>
         <h1 className="h1">
           {Math.round((quiz_attempt.score ?? 0) * quiz_attempt.item_count)}/
@@ -225,7 +225,7 @@ export function QuizAttemptPage() {
   }
 
   return (
-    <div className="quiz-take">
+    <div className="page quiz-take">
       <p className="caption">
         Week {quiz_attempt.week} · question {results.length + 1} of {quiz_attempt.item_count}
         {currentItemWasSkipped && readingItemId === null && ' · revisiting a skipped question'}

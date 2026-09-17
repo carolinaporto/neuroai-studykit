@@ -1,0 +1,75 @@
+.overview-lede {
+  color: var(--ink);
+  max-width: 640px;
+  margin-top: var(--space-2);
+}
+
+.overview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 260px;
+  padding: var(--space-4);
+  background: var(--surface-100);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+a.overview-card:hover {
+  border-color: var(--border-strong);
+}
+
+a.overview-card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.overview-card-is-locked {
+  opacity: 0.7;
+}
+
+.overview-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.overview-card-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--accent-neuro);
+}
+
+.overview-card-title {
+  color: var(--ink);
+  margin: 0;
+}
+
+.overview-card-desc {
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.overview-card-locked-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.overview-card-lock-icon {
+  width: 12px;
+  height: 12px;
+}

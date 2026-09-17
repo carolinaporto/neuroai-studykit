@@ -2,13 +2,13 @@
   width: 264px;
   flex-shrink: 0;
   background: var(--surface-100);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-4);
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-4) var(--space-3);
   box-sizing: border-box;
-  height: fit-content;
-  position: sticky;
-  top: var(--space-5);
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .synav-brand {
@@ -111,7 +111,7 @@
 }
 
 .synav-foot {
-  margin-top: var(--space-4);
+  margin-top: auto;
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }

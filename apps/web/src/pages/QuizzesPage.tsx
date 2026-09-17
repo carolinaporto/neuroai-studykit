@@ -33,7 +33,7 @@ export function QuizzesPage() {
   const weeks = weeksQuery.data ?? []
 
   return (
-    <div>
+    <div className="page">
       <h1 className="h1">Quizzes</h1>
       {weeks.length === 0 && (
         <p className="body">No quizzes available yet — upload and generate sources first.</p>

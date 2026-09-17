@@ -22,3 +22,11 @@ body {
 button {
   font-family: inherit;
 }
+
+/* Standard content padding for a page rendered inside .app-content — the shell itself
+   (sidebar, split panels) goes edge to edge, this is what keeps ordinary page text off
+   the browser edge without every page re-declaring its own margins. */
+.page {
+  padding: var(--space-5) var(--space-6);
+  box-sizing: border-box;
+}

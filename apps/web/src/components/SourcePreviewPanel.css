@@ -5,10 +5,8 @@
   flex-direction: column;
   gap: var(--space-3);
   background: var(--surface-100);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-4);
+  border-left: 1px solid var(--border-subtle);
+  padding: var(--space-5) var(--space-5) var(--space-4);
   box-sizing: border-box;
   overflow: hidden;
 }

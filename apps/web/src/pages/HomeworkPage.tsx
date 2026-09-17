@@ -13,7 +13,7 @@ export function HomeworkPage() {
   const homework = query.data ?? []
 
   return (
-    <div>
+    <div className="page">
       <h1 className="h1">Homework</h1>
       {homework.length === 0 && <p className="body">Nothing published yet.</p>}
       <div className="homework-grid">

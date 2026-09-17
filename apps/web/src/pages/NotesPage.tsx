@@ -61,7 +61,7 @@ export function NotesPage() {
   const notes = notesQuery.data ?? []
 
   return (
-    <div>
+    <div className="page">
       <h1 className="h1">Notes & Insights</h1>
 
       <form className="note-form" onSubmit={handleSubmit}>

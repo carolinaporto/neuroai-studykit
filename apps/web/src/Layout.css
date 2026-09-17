@@ -1,11 +1,8 @@
 .app-shell {
   display: flex;
-  gap: var(--space-5);
   width: 100%;
   height: 100vh;
   box-sizing: border-box;
-  padding: var(--space-5) var(--space-6);
-  align-items: flex-start;
   overflow: hidden;
 }
 
