@@ -32,7 +32,10 @@ def test_verify_session_token_rejects_wrong_secret() -> None:
 def test_verify_session_token_rejects_tampered_signature() -> None:
     token = create_session_token(SECRET)
     issued_at, _, signature = token.partition(".")
-    tampered = f"{issued_at}.{signature[:-1]}f"
+    # Flip to a character guaranteed different from the original last one — appending a
+    # fixed 'f' was a ~1/16 no-op whenever the real signature already ended in 'f'.
+    flipped = "0" if signature[-1] != "0" else "1"
+    tampered = f"{issued_at}.{signature[:-1]}{flipped}"
     assert verify_session_token(tampered, SECRET) is False
 
 

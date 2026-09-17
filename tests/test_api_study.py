@@ -602,6 +602,9 @@ async def test_quiz_completes_and_scores_once_every_item_is_answered() -> None:
             assert mid_review.json()["quiz_attempt"]["status"] == "in_progress"
             assert mid_review.json()["quiz_attempt"]["score"] is None
             assert len(mid_review.json()["results"]) == 1
+            # `items` always lists the full frozen set, even mid-attempt — a client
+            # resuming an in_progress attempt needs this to know what's left to answer.
+            assert {i["id"] for i in mid_review.json()["items"]} == {str(i) for i in item_ids}
 
             second = await client.post(
                 "/api/study/answer",

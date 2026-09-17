@@ -113,5 +113,11 @@ class QuizReviewItem(BaseModel):
 
 
 class QuizReviewResponse(BaseModel):
+    """`items` is the attempt's full frozen set, in order, gabarito-free — what a client
+    needs to resume an `in_progress` attempt (diff against `results` for what's left to
+    answer). `results` is only the items graded so far; for a `completed` attempt the two
+    lists have the same items."""
+
     quiz_attempt: QuizAttemptOut
+    items: list[StudyQueueItem]
     results: list[QuizReviewItem]

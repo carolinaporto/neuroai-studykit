@@ -281,7 +281,14 @@ async def review_quiz(
             )
         )
 
-    return QuizReviewResponse(quiz_attempt=_quiz_attempt_out(quiz_attempt), results=results)
+    ordered_items = [
+        items_by_id[item_id] for item_id in quiz_attempt.item_ids if item_id in items_by_id
+    ]
+    return QuizReviewResponse(
+        quiz_attempt=_quiz_attempt_out(quiz_attempt),
+        items=[_queue_item(item) for item in ordered_items],
+        results=results,
+    )
 
 
 @router.post("/answer", response_model=StudyAnswerResponse)
