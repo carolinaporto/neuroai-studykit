@@ -7,6 +7,7 @@ up its own rows.
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 import pytest
@@ -15,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from apps.api.core.db import get_session
 from apps.api.core.deps import require_owner
 from apps.api.main import app
-from packages.db.models import Source, SourceKind, SourceStatus, User
+from packages.db.models import Chunk, Source, SourceKind, SourceStatus, User
 from packages.db.session import DbSettings, make_session_factory
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @asynccontextmanager
@@ -142,5 +145,130 @@ async def test_list_sources_excludes_pending_and_weekless_rows() -> None:
             all_titles = {s["title"] for week in resp.json() for s in week["sources"]}
             assert "not yet processed" not in all_titles
             assert "calibration-style fixture" not in all_titles
+    finally:
+        await _cleanup(session_factory, source_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_source_returns_chunks_in_order() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    source_ids: list[uuid.UUID] = []
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        source = Source(
+            owner_id=owner_id,
+            week=6,
+            title="Detail view source",
+            kind=SourceKind.transcript,
+            storage_uri="test://detail",
+            sha256=uuid.uuid4().hex + uuid.uuid4().hex,
+            status=SourceStatus.ingested,
+        )
+        session.add(source)
+        await session.flush()
+        session.add_all(
+            [
+                Chunk(
+                    source_id=source.id,
+                    ordinal=1,
+                    text="second chunk",
+                    locators=[{"t0": 60, "t1": 120}],
+                    token_count=10,
+                ),
+                Chunk(
+                    source_id=source.id,
+                    ordinal=0,
+                    text="first chunk",
+                    locators=[{"t0": 0, "t1": 60}],
+                    token_count=10,
+                ),
+            ]
+        )
+        await session.commit()
+        source_ids = [source.id]
+        source_id = source.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.get(f"/api/sources/{source_id}")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["title"] == "Detail view source"
+            assert [c["text"] for c in body["chunks"]] == ["first chunk", "second chunk"]
+    finally:
+        await _cleanup(session_factory, source_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_source_returns_404_for_unknown_id() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    async with _test_client(session_factory) as client:
+        resp = await client.get(f"/api/sources/{uuid.uuid4()}")
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_source_file_serves_the_stored_pdf(tmp_path) -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    source_ids: list[uuid.UUID] = []
+
+    stored_path = tmp_path / "lecture.pdf"
+    stored_path.write_bytes((FIXTURES / "synthetic.pdf").read_bytes())
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        source = Source(
+            owner_id=owner_id,
+            week=6,
+            title="File view source",
+            kind=SourceKind.lecture_pdf,
+            storage_uri=str(stored_path),
+            sha256=uuid.uuid4().hex + uuid.uuid4().hex,
+            status=SourceStatus.ingested,
+        )
+        session.add(source)
+        await session.commit()
+        source_ids = [source.id]
+        source_id = source.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.get(f"/api/sources/{source_id}/file")
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/pdf"
+            assert resp.content == stored_path.read_bytes()
+    finally:
+        await _cleanup(session_factory, source_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_source_file_404_when_missing_on_disk() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    source_ids: list[uuid.UUID] = []
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        source = Source(
+            owner_id=owner_id,
+            week=6,
+            title="Missing file source",
+            kind=SourceKind.lecture_pdf,
+            storage_uri="/nonexistent/path/file.pdf",
+            sha256=uuid.uuid4().hex + uuid.uuid4().hex,
+            status=SourceStatus.ingested,
+        )
+        session.add(source)
+        await session.commit()
+        source_ids = [source.id]
+        source_id = source.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.get(f"/api/sources/{source_id}/file")
+            assert resp.status_code == 404
     finally:
         await _cleanup(session_factory, source_ids)

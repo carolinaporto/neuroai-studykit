@@ -6,10 +6,15 @@
 }
 
 .si-row {
+  all: unset;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  font-family: var(--font-sans);
 }
 
 .si-row + .si-row {
@@ -18,6 +23,15 @@
 
 .si-row:hover {
   background: var(--surface-200);
+}
+
+.si-row-active {
+  background: var(--accent-neuro-soft);
+}
+
+.si-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .si-icon {

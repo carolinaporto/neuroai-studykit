@@ -15,10 +15,18 @@ export function SourceList({ children }: { children: ReactNode }) {
   return <div className="si-wrap">{children}</div>
 }
 
-export function SourceItem({ kind, title, meta }: { kind: string; title: string; meta: string }) {
+interface SourceItemProps {
+  kind: string
+  title: string
+  meta: string
+  isActive?: boolean
+  onClick?: () => void
+}
+
+export function SourceItem({ kind, title, meta, isActive = false, onClick }: SourceItemProps) {
   const IconComp = ICON_BY_KIND[kind] ?? DocumentIcon
   return (
-    <div className="si-row">
+    <button type="button" className={`si-row${isActive ? ' si-row-active' : ''}`} onClick={onClick}>
       <div className="si-icon">
         <IconComp />
       </div>
@@ -27,6 +35,6 @@ export function SourceItem({ kind, title, meta }: { kind: string; title: string;
         <div className="caption si-meta">{meta}</div>
       </div>
       <LockIcon className="si-lock" />
-    </div>
+    </button>
   )
 }

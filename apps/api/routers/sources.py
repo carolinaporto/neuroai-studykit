@@ -10,7 +10,8 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -18,8 +19,10 @@ from apps.api.core.config import settings
 from apps.api.core.db import get_session, get_session_factory
 from apps.api.core.deps import get_current_user_id, get_llm_client, require_owner
 from apps.api.schemas.sources import (
+    ChunkOut,
     GenerateRequest,
     GenerateResponse,
+    SourceDetail,
     SourceOut,
     UploadResult,
     UploadSourcesResponse,
@@ -43,6 +46,13 @@ router = APIRouter(prefix="/api/sources", tags=["sources"], dependencies=[Depend
 # Same as ARCHITECTURE.md §7's upload rules: only these extensions, a size cap, and the
 # stored file is named by UUID — never the original filename.
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+MEDIA_TYPE_BY_EXTENSION = {
+    ".pdf": "application/pdf",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".vtt": "text/vtt",
+    ".srt": "text/plain",
+}
 
 
 @router.get("", response_model=list[WeekSources])
@@ -78,6 +88,54 @@ async def list_sources(
         )
         for week in sorted(grouped)
     ]
+
+
+async def _get_owned_source(
+    session: AsyncSession, source_id: uuid.UUID, user_id: uuid.UUID
+) -> Source:
+    source = await session.get(Source, source_id)
+    if source is None or source.owner_id != user_id:
+        raise HTTPException(status_code=404, detail="source not found")
+    return source
+
+
+@router.get("/{source_id}", response_model=SourceDetail)
+async def get_source(
+    source_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+) -> SourceDetail:
+    """The click-to-preview panel's data: the source's own fields plus every chunk, in
+    order — what the app actually extracted from it, gabarito concerns don't apply here
+    (this is raw source material, not a quiz item's rubric)."""
+    source = await _get_owned_source(session, source_id, user_id)
+    chunks = (
+        await session.scalars(
+            select(ChunkRow).where(ChunkRow.source_id == source_id).order_by(ChunkRow.ordinal)
+        )
+    ).all()
+    return SourceDetail(
+        **SourceOut.model_validate(source).model_dump(),
+        chunks=[ChunkOut.model_validate(c) for c in chunks],
+    )
+
+
+@router.get("/{source_id}/file")
+async def get_source_file(
+    source_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+) -> FileResponse:
+    """The actual uploaded bytes, for the one type a browser can render natively (`.pdf`) —
+    an `<iframe>` pointed at this URL is the preview panel's real document view. `.pptx` and
+    transcripts fall back to `SourceDetail`'s chunk text; this endpoint still serves them
+    (as a download), just not embeddable."""
+    source = await _get_owned_source(session, source_id, user_id)
+    path = Path(source.storage_uri)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="stored file is missing on disk")
+    media_type = MEDIA_TYPE_BY_EXTENSION.get(path.suffix.lower(), "application/octet-stream")
+    return FileResponse(path, media_type=media_type)
 
 
 async def _ensure_owner(session: AsyncSession, owner_id: uuid.UUID) -> None:

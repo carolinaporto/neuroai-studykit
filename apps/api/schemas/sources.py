@@ -25,6 +25,24 @@ class WeekSources(BaseModel):
     sources: list[SourceOut]
 
 
+class ChunkOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ordinal: int
+    text: str
+    locators: list[dict]
+    token_count: int
+
+
+class SourceDetail(SourceOut):
+    """`SourceOut` plus its chunks, in order — the click-to-preview panel's data. Chunk text
+    is what the app actually extracted, which is the honest thing to preview for a type
+    (`.pptx`, `.vtt`/`.srt`) the browser can't render natively; a `.pdf` gets the real file
+    via `GET /api/sources/{id}/file` instead, this is just backup/context for it too."""
+
+    chunks: list[ChunkOut]
+
+
 class UploadResult(BaseModel):
     filename: str
     status: Literal["ingested", "duplicate", "unsupported", "too_large", "failed"]

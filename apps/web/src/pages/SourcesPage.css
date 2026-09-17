@@ -1,0 +1,10 @@
+.sources-layout {
+  display: flex;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+
+.sources-main {
+  flex: 2 1 480px;
+  min-width: 0;
+}

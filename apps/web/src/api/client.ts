@@ -5,6 +5,7 @@ import type {
   NoteOut,
   QuizReviewResponse,
   SessionStatus,
+  SourceDetail,
   StartQuizRequest,
   StartQuizResponse,
   StudyAnswerRequest,
@@ -67,6 +68,16 @@ export function getSession(): Promise<SessionStatus> {
 
 export function listSources(): Promise<WeekSources[]> {
   return get('/api/sources')
+}
+
+export function getSource(id: string): Promise<SourceDetail> {
+  return get(`/api/sources/${id}`)
+}
+
+// Not a fetch wrapper — used directly as an <iframe>/<a> src so the browser (not our JS)
+// streams the bytes. Cookies still ride along automatically for a same-context request.
+export function sourceFileUrl(id: string): string {
+  return `${API_BASE_URL}/api/sources/${id}/file`
 }
 
 export async function uploadSources(week: number, files: File[]): Promise<UploadSourcesResponse> {

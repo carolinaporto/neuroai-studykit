@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import { listSources } from '../api/client'
 import { useSession } from '../auth/useAuth'
 import { LockedPlaceholder } from '../components/LockedPlaceholder'
 import { SourceItem, SourceList } from '../components/SourceItem'
+import { SourcePreviewPanel } from '../components/SourcePreviewPanel'
 import { SourceUploadPanel } from '../components/SourceUploadPanel'
 import { WeekHeader } from '../components/WeekHeader'
+import './SourcesPage.css'
 
 const KIND_LABEL: Record<string, string> = {
   slides: 'Slides',
@@ -30,39 +33,48 @@ export function SourcesPage() {
   const { data: session } = useSession()
   const signedIn = session?.signed_in ?? false
   const query = useQuery({ queryKey: ['sources'], queryFn: listSources, enabled: signedIn })
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
 
   if (!signedIn) return <LockedPlaceholder section="Sources" />
 
   const weeks = query.data ?? []
 
   return (
-    <div>
-      <h1 className="h1">Sources</h1>
-      <SourceUploadPanel />
-      {query.isLoading && <p className="body">Loading…</p>}
-      {query.isError && <p className="body">{(query.error as Error).message}</p>}
-      {!query.isLoading && !query.isError && weeks.length === 0 && (
-        <p className="body">No sources uploaded yet.</p>
+    <div className="sources-layout">
+      <div className="sources-main">
+        <h1 className="h1">Sources</h1>
+        <SourceUploadPanel />
+        {query.isLoading && <p className="body">Loading…</p>}
+        {query.isError && <p className="body">{(query.error as Error).message}</p>}
+        {!query.isLoading && !query.isError && weeks.length === 0 && (
+          <p className="body">No sources uploaded yet.</p>
+        )}
+        {weeks.map((week) => (
+          <section key={week.week}>
+            <WeekHeader
+              week={week.week}
+              title={week.title ?? `Week ${week.week}`}
+              meta={`${week.sources.length} source${week.sources.length === 1 ? '' : 's'}`}
+            />
+            <SourceList>
+              {week.sources.map((source) => (
+                <SourceItem
+                  key={source.id}
+                  kind={source.kind}
+                  title={source.title}
+                  meta={formatMeta(source.kind, source.page_count, source.duration_seconds)}
+                  isActive={selectedSourceId === source.id}
+                  onClick={() => setSelectedSourceId(source.id)}
+                />
+              ))}
+            </SourceList>
+          </section>
+        ))}
+      </div>
+
+      {selectedSourceId && (
+        <SourcePreviewPanel sourceId={selectedSourceId} onClose={() => setSelectedSourceId(null)} />
       )}
-      {weeks.map((week) => (
-        <section key={week.week}>
-          <WeekHeader
-            week={week.week}
-            title={week.title ?? `Week ${week.week}`}
-            meta={`${week.sources.length} source${week.sources.length === 1 ? '' : 's'}`}
-          />
-          <SourceList>
-            {week.sources.map((source) => (
-              <SourceItem
-                key={source.id}
-                kind={source.kind}
-                title={source.title}
-                meta={formatMeta(source.kind, source.page_count, source.duration_seconds)}
-              />
-            ))}
-          </SourceList>
-        </section>
-      ))}
     </div>
   )
 }

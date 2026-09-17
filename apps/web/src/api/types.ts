@@ -73,6 +73,17 @@ export interface WeekSources {
   sources: SourceOut[]
 }
 
+export interface ChunkOut {
+  ordinal: number
+  text: string
+  locators: Locator[]
+  token_count: number
+}
+
+export interface SourceDetail extends SourceOut {
+  chunks: ChunkOut[]
+}
+
 export interface UploadResult {
   filename: string
   status: 'ingested' | 'duplicate' | 'unsupported' | 'too_large' | 'failed'
