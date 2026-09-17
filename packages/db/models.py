@@ -15,6 +15,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -113,7 +114,15 @@ class Source(UUIDPkMixin, CreatedAtMixin, Base):
     week: Mapped[int | None] = mapped_column(Integer, nullable=True)
     title: Mapped[str] = mapped_column(String)
     kind: Mapped[SourceKind] = mapped_column(SqlEnum(SourceKind, name="source_kind"))
+    # For a CLI-synced source (`ingest sync`), the original file's real path on the user's
+    # own machine — never copied, `content/` is gitignored on purpose (ARCHITECTURE.md §8).
+    # For a web-uploaded source, just the original filename, kept for reference only — the
+    # actual bytes live in `file_data` below, not on any disk this app manages, per the
+    # user's explicit choice over paying for S3/R2: no new external service, no local-disk
+    # durability risk either.
     storage_uri: Mapped[str] = mapped_column(Text)
+    file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    file_media_type: Mapped[str | None] = mapped_column(String, nullable=True)
     sha256: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(nullable=True)

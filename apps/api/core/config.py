@@ -23,12 +23,6 @@ class Settings(BaseSettings):
     owner_password: str = ""
     session_secret: str = ""
     env: str = "development"
-    # Where POST /api/sources/upload writes uploaded files — local disk for now.
-    # `storage/` (not `content/`) on purpose: `content/` is reserved for the copyright-
-    # sensitive course material workflow (ARCHITECTURE.md §8); `storage/` is .gitignore's
-    # existing, separate slot for local uploads. Moves to R2/S3 at deploy time (M13);
-    # nothing else in the codebase assumes a local path, only this setting's default.
-    upload_dir: str = "storage/uploads"
 
 
 settings = Settings()

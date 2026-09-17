@@ -245,6 +245,45 @@ async def test_get_source_file_serves_the_stored_pdf(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_source_file_serves_bytes_stored_in_postgres() -> None:
+    """The path every web upload takes since Source.file_data replaced local-disk storage
+    (see apps/api/routers/sources.py) — no file on disk at all here, storage_uri is just the
+    original filename kept for reference."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    source_ids: list[uuid.UUID] = []
+
+    pdf_bytes = (FIXTURES / "synthetic.pdf").read_bytes()
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        source = Source(
+            owner_id=owner_id,
+            week=6,
+            title="DB-stored source",
+            kind=SourceKind.lecture_pdf,
+            storage_uri="lecture.pdf",
+            file_data=pdf_bytes,
+            file_media_type="application/pdf",
+            sha256=uuid.uuid4().hex + uuid.uuid4().hex,
+            status=SourceStatus.ingested,
+        )
+        session.add(source)
+        await session.commit()
+        source_ids = [source.id]
+        source_id = source.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.get(f"/api/sources/{source_id}/file")
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/pdf"
+            assert resp.content == pdf_bytes
+    finally:
+        await _cleanup(session_factory, source_ids)
+
+
+@pytest.mark.asyncio
 async def test_get_source_file_404_when_missing_on_disk() -> None:
     session_factory = make_session_factory(DbSettings().database_url)
     owner_id = DbSettings().dev_owner_id

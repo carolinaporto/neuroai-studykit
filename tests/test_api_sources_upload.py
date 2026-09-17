@@ -64,9 +64,6 @@ async def _cleanup_week(session_factory: async_sessionmaker, week: int) -> None:
     async with session_factory() as session:
         sources = (await session.scalars(select(Source).where(Source.week == week))).all()
         for source in sources:
-            storage_path = Path(source.storage_uri)
-            if storage_path.is_file():
-                storage_path.unlink()
             await session.delete(source)  # cascades to Chunk/Item/Attempt
         await session.commit()
 
@@ -122,7 +119,8 @@ async def test_upload_ingests_a_supported_file_and_dedupes_on_replay() -> None:
                     )
                 ).all()
                 assert len(chunks) == first_results[0]["chunk_count"]
-                assert Path(sources[0].storage_uri).is_file()
+                assert sources[0].file_data == pdf_bytes
+                assert sources[0].file_media_type == "application/pdf"
 
             # Same bytes again — must dedupe by sha256, not create a second Source.
             second = await client.post(

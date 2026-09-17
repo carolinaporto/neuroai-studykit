@@ -11,11 +11,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from apps.api.core.config import settings
 from apps.api.core.db import get_session, get_session_factory
 from apps.api.core.deps import get_current_user_id, get_llm_client, require_owner
 from apps.api.schemas.sources import (
@@ -43,8 +42,10 @@ from packages.ingest.topics import load_topics
 
 router = APIRouter(prefix="/api/sources", tags=["sources"], dependencies=[Depends(require_owner)])
 
-# Same as ARCHITECTURE.md §7's upload rules: only these extensions, a size cap, and the
-# stored file is named by UUID — never the original filename.
+# Same as ARCHITECTURE.md §7's upload rules: only these extensions and a size cap. Unlike
+# that section's original plan, the file itself isn't named-by-UUID-and-written-to-disk
+# anymore — see Source.file_data's docstring in packages/db/models.py for why (the user's
+# call: no paid cloud storage, no new external service, just Postgres).
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 MEDIA_TYPE_BY_EXTENSION = {
@@ -125,12 +126,24 @@ async def get_source_file(
     source_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
     user_id: uuid.UUID = Depends(get_current_user_id),
-) -> FileResponse:
-    """The actual uploaded bytes, for the one type a browser can render natively (`.pdf`) —
-    an `<iframe>` pointed at this URL is the preview panel's real document view. `.pptx` and
+) -> Response:
+    """The actual file, for the one type a browser can render natively (`.pdf`) — an
+    `<iframe>` pointed at this URL is the preview panel's real document view. `.pptx` and
     transcripts fall back to `SourceDetail`'s chunk text; this endpoint still serves them
-    (as a download), just not embeddable."""
+    (as a download), just not embeddable.
+
+    Two sources, in order of precedence: `file_data` (bytes stored in Postgres — every
+    source uploaded through the web since the DB-storage change) if present, else a real
+    file on disk at `storage_uri` (a CLI-synced source, whose original still lives wherever
+    the user's own `content/weekNN/` folder is)."""
     source = await _get_owned_source(session, source_id, user_id)
+
+    if source.file_data is not None:
+        return Response(
+            content=source.file_data,
+            media_type=source.file_media_type or "application/octet-stream",
+        )
+
     path = Path(source.storage_uri)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="stored file is missing on disk")
@@ -155,11 +168,9 @@ async def upload_sources(
     LLM call, so this endpoint costs nothing to hit. `week` comes from the form (there is no
     `weekNN/` folder name to infer it from, unlike the CLI), same file types the CLI
     supports (`packages/ingest/cli.py`'s `PARSERS`) — anything else comes back
-    `unsupported`, not silently dropped."""
+    `unsupported`, not silently dropped. The file itself is stored in Postgres
+    (`Source.file_data`), not on disk — see that column's docstring."""
     await _ensure_owner(session, user_id)
-
-    upload_dir = Path(settings.upload_dir)
-    upload_dir.mkdir(parents=True, exist_ok=True)
 
     results: list[UploadResult] = []
     for upload in files:
@@ -182,14 +193,15 @@ async def upload_sources(
             continue
 
         kind = SOURCE_KIND_BY_EXTENSION[ext]
-        stored_path = upload_dir / f"{uuid.uuid4()}{ext}"
 
         source = Source(
             owner_id=user_id,
             week=week,
             title=Path(filename).stem,
             kind=kind,
-            storage_uri=str(stored_path.resolve()),
+            storage_uri=filename,  # informational only now — the bytes are file_data below
+            file_data=data,
+            file_media_type=MEDIA_TYPE_BY_EXTENSION.get(ext, "application/octet-stream"),
             sha256=sha256,
             status=SourceStatus.pending,
         )
@@ -208,7 +220,6 @@ async def upload_sources(
         try:
             blocks = PARSERS[ext](data)
             chunks = chunk_blocks(blocks)
-            stored_path.write_bytes(data)
             for chunk in chunks:
                 session.add(
                     ChunkRow(
