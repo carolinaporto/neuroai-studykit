@@ -1,0 +1,143 @@
+.qc-card {
+  width: 224px;
+  background: var(--surface-100);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.qc-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.qc-wk {
+  background: var(--surface-200);
+  color: var(--ink-soft);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.qc-eyebrow {
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.qc-title {
+  color: var(--ink);
+  margin-top: -2px;
+}
+
+.qc-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.qc-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qc-icon-locked {
+  background: var(--surface-200);
+  color: var(--ink-soft);
+}
+
+.qc-icon-ready {
+  background: var(--accent-neuro-soft);
+  color: var(--accent-neuro);
+}
+
+.qc-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.qc-meta {
+  color: var(--ink-soft);
+}
+
+.qc-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  text-align: center;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.qc-btn-primary {
+  background: var(--accent-neuro);
+  color: var(--on-fill);
+}
+
+.qc-btn-disabled {
+  background: var(--surface-200);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+.qc-btn-disabled svg {
+  width: 13px;
+  height: 13px;
+}
+
+.qc-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.qc-history {
+  list-style: none;
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.qc-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.qc-history-label {
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+}
+
+.qc-history-link {
+  all: unset;
+  cursor: pointer;
+  color: var(--accent-neuro);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.qc-history-link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

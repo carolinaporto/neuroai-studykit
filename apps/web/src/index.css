@@ -1,1 +1,24 @@
-@import 'tailwindcss';
+@import './styles/tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-50);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+button {
+  font-family: inherit;
+}

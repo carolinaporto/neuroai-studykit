@@ -1,0 +1,25 @@
+.ab-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ab-badge svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+
+.ab-badge-public {
+  background: var(--accent-warm-soft);
+  color: var(--accent-warm);
+}
+
+.ab-badge-private {
+  background: var(--surface-200);
+  color: var(--ink-soft);
+}

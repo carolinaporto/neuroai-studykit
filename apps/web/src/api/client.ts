@@ -1,31 +1,112 @@
 import type {
+  HomeworkOut,
+  NoteCreateRequest,
+  NoteOut,
+  QuizReviewResponse,
+  SessionStatus,
+  StartQuizRequest,
+  StartQuizResponse,
   StudyAnswerRequest,
   StudyAnswerResponse,
   StudySessionRequest,
   StudyQueueItem,
+  WeekQuizzes,
+  WeekSources,
 } from './types'
 
 // Never a secret — just the backend's own address. VITE_* would leak into the client
 // bundle, but that's fine here (CLAUDE.md invariant 3 is about API keys, not this).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    ...init,
+    credentials: 'include', // sends/accepts the owner session cookie
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
   if (!res.ok) {
     const detail = await res.text()
     throw new Error(`${path} failed (${res.status}): ${detail}`)
   }
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
+function get<T>(path: string): Promise<T> {
+  return request(path)
+}
+
+function post<T>(path: string, body?: unknown): Promise<T> {
+  return request(path, {
+    method: 'POST',
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+}
+
+function patch<T>(path: string, body: unknown): Promise<T> {
+  return request(path, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+// --- auth ---
+
+export function login(password: string): Promise<SessionStatus> {
+  return post('/api/auth/login', { password })
+}
+
+export function logout(): Promise<SessionStatus> {
+  return post('/api/auth/logout')
+}
+
+export function getSession(): Promise<SessionStatus> {
+  return get('/api/auth/session')
+}
+
+// --- sources ---
+
+export function listSources(): Promise<WeekSources[]> {
+  return get('/api/sources')
+}
+
+// --- homework (public) ---
+
+export function listHomework(): Promise<HomeworkOut[]> {
+  return get('/api/homework')
+}
+
+// --- notes ---
+
+export function listNotes(): Promise<NoteOut[]> {
+  return get('/api/notes')
+}
+
+export function createNote(body: NoteCreateRequest): Promise<NoteOut> {
+  return post('/api/notes', body)
+}
+
+export function patchNote(id: string, body: Partial<NoteCreateRequest>): Promise<NoteOut> {
+  return patch(`/api/notes/${id}`, body)
+}
+
+// --- study: standalone practice ---
+
 export function startStudySession(body: StudySessionRequest): Promise<StudyQueueItem[]> {
-  return postJson('/api/study/session', body)
+  return post('/api/study/session', body)
 }
 
 export function submitStudyAnswer(body: StudyAnswerRequest): Promise<StudyAnswerResponse> {
-  return postJson('/api/study/answer', body)
+  return post('/api/study/answer', body)
+}
+
+// --- study: per-week quiz ---
+
+export function listQuizWeeks(): Promise<WeekQuizzes[]> {
+  return get('/api/study/weeks')
+}
+
+export function startQuiz(body: StartQuizRequest): Promise<StartQuizResponse> {
+  return post('/api/study/quiz', body)
+}
+
+export function reviewQuiz(quizAttemptId: string): Promise<QuizReviewResponse> {
+  return get(`/api/study/quiz/${quizAttemptId}`)
 }

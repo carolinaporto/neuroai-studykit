@@ -1,0 +1,14 @@
+.app-shell {
+  display: flex;
+  gap: var(--space-5);
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-5);
+  align-items: flex-start;
+  min-height: 100%;
+}
+
+.app-content {
+  flex: 1;
+  min-width: 0;
+}
