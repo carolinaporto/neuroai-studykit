@@ -1,9 +1,9 @@
-"""Response models for `GET /api/sources` — feeds Synapse's `WeekHeader` + `SourceItem`
-(design/synapse). Read-only: there is no upload-via-API yet, ingestion is CLI-only in Fase 1
-per ARCHITECTURE.md."""
+"""Response models for `apps/api/routers/sources.py` — Synapse's `WeekHeader` +
+`SourceItem`, plus the upload and question-generation actions the Sources page drives."""
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -23,3 +23,32 @@ class WeekSources(BaseModel):
     week: int
     title: str | None
     sources: list[SourceOut]
+
+
+class UploadResult(BaseModel):
+    filename: str
+    status: Literal["ingested", "duplicate", "unsupported", "too_large", "failed"]
+    chunk_count: int | None = None
+    error: str | None = None
+
+
+class UploadSourcesResponse(BaseModel):
+    results: list[UploadResult]
+
+
+class GenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    week: int
+    # Re-generate chunks that already have items too, instead of skipping them — see
+    # packages/ingest/cli.py's generate_for_week docstring. Off by default so an accidental
+    # second click of "Generate" is nearly free, not a second paid pass over everything.
+    force: bool = False
+
+
+class GenerateResponse(BaseModel):
+    chunks_processed: int
+    items_saved: int
+    items_rejected: int
+    chunks_failed: int
+    proposed_topics: list[str]

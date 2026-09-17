@@ -4,6 +4,7 @@ import { listSources } from '../api/client'
 import { useSession } from '../auth/useAuth'
 import { LockedPlaceholder } from '../components/LockedPlaceholder'
 import { SourceItem, SourceList } from '../components/SourceItem'
+import { SourceUploadPanel } from '../components/SourceUploadPanel'
 import { WeekHeader } from '../components/WeekHeader'
 
 const KIND_LABEL: Record<string, string> = {
@@ -31,15 +32,18 @@ export function SourcesPage() {
   const query = useQuery({ queryKey: ['sources'], queryFn: listSources, enabled: signedIn })
 
   if (!signedIn) return <LockedPlaceholder section="Sources" />
-  if (query.isLoading) return <p className="body">Loading…</p>
-  if (query.isError) return <p className="body">{(query.error as Error).message}</p>
 
   const weeks = query.data ?? []
 
   return (
     <div>
       <h1 className="h1">Sources</h1>
-      {weeks.length === 0 && <p className="body">No sources uploaded yet.</p>}
+      <SourceUploadPanel />
+      {query.isLoading && <p className="body">Loading…</p>}
+      {query.isError && <p className="body">{(query.error as Error).message}</p>}
+      {!query.isLoading && !query.isError && weeks.length === 0 && (
+        <p className="body">No sources uploaded yet.</p>
+      )}
       {weeks.map((week) => (
         <section key={week.week}>
           <WeekHeader

@@ -73,6 +73,25 @@ export interface WeekSources {
   sources: SourceOut[]
 }
 
+export interface UploadResult {
+  filename: string
+  status: 'ingested' | 'duplicate' | 'unsupported' | 'too_large' | 'failed'
+  chunk_count: number | null
+  error: string | null
+}
+
+export interface UploadSourcesResponse {
+  results: UploadResult[]
+}
+
+export interface GenerateResponse {
+  chunks_processed: number
+  items_saved: number
+  items_rejected: number
+  chunks_failed: number
+  proposed_topics: string[]
+}
+
 export type Discipline = 'Neuroscience' | 'Computer Science' | 'Psychology'
 
 export interface HomeworkOut {

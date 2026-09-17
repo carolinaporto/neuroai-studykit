@@ -12,7 +12,15 @@ interface InsightNoteProps {
   createdAt: string
 }
 
-export function InsightNote({ disciplines, isPublic, title, body, url, week, createdAt }: InsightNoteProps) {
+export function InsightNote({
+  disciplines,
+  isPublic,
+  title,
+  body,
+  url,
+  week,
+  createdAt,
+}: InsightNoteProps) {
   return (
     <div className="in-card">
       <div className="in-top">

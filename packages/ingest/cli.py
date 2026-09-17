@@ -44,14 +44,14 @@ from .parsers.pptx import parse_pptx
 from .parsers.transcript import parse_transcript
 from .topics import load_topics
 
-_PARSERS = {
+PARSERS = {
     ".pdf": parse_pdf,
     ".pptx": parse_pptx,
     ".vtt": parse_transcript,
     ".srt": parse_transcript,
 }
 
-_SOURCE_KINDS = {
+SOURCE_KIND_BY_EXTENSION = {
     ".pdf": SourceKind.lecture_pdf,
     ".pptx": SourceKind.slides,
     ".vtt": SourceKind.transcript,
@@ -62,7 +62,7 @@ _WEEK_RE = re.compile(r"week0*(\d+)", re.IGNORECASE)
 
 
 def parse_file(path: Path) -> list[ParsedBlock]:
-    parser = _PARSERS.get(path.suffix.lower())
+    parser = PARSERS.get(path.suffix.lower())
     if parser is None:
         raise ValueError(f"no parser registered for extension {path.suffix!r}")
     return parser(path.read_bytes())
@@ -85,14 +85,14 @@ def _infer_week(folder: Path) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _page_count(kind: SourceKind, blocks: list[ParsedBlock]) -> int | None:
+def page_count_for(kind: SourceKind, blocks: list[ParsedBlock]) -> int | None:
     if kind is not SourceKind.lecture_pdf:
         return None
     pages = [b.locator.page for b in blocks if b.locator.page is not None]
     return max(pages) if pages else None
 
 
-def _duration_seconds(kind: SourceKind, blocks: list[ParsedBlock]) -> float | None:
+def duration_seconds_for(kind: SourceKind, blocks: list[ParsedBlock]) -> float | None:
     if kind is not SourceKind.transcript:
         return None
     ends = [b.locator.t1 for b in blocks if b.locator.t1 is not None]
@@ -100,7 +100,7 @@ def _duration_seconds(kind: SourceKind, blocks: list[ParsedBlock]) -> float | No
 
 
 def _find_syncable_files(folder: Path) -> list[Path]:
-    return sorted(p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in _PARSERS)
+    return sorted(p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in PARSERS)
 
 
 async def _ensure_owner(session: AsyncSession, owner_id: uuid.UUID) -> None:
@@ -134,7 +134,7 @@ async def sync_folder(
                 counts["duplicate"] += 1
                 continue
 
-            kind = _SOURCE_KINDS[path.suffix.lower()]
+            kind = SOURCE_KIND_BY_EXTENSION[path.suffix.lower()]
             source = Source(
                 owner_id=owner_id,
                 week=week,
@@ -171,8 +171,8 @@ async def sync_folder(
                             token_count=chunk.token_count,
                         )
                     )
-                source.page_count = _page_count(kind, blocks)
-                source.duration_seconds = _duration_seconds(kind, blocks)
+                source.page_count = page_count_for(kind, blocks)
+                source.duration_seconds = duration_seconds_for(kind, blocks)
                 source.status = SourceStatus.ingested
                 source.ingested_at = datetime.now(UTC)
                 job.status = IngestJobStatus.done

@@ -1,4 +1,5 @@
 import type {
+  GenerateResponse,
   HomeworkOut,
   NoteCreateRequest,
   NoteOut,
@@ -10,6 +11,7 @@ import type {
   StudyAnswerResponse,
   StudySessionRequest,
   StudyQueueItem,
+  UploadSourcesResponse,
   WeekQuizzes,
   WeekSources,
 } from './types'
@@ -65,6 +67,29 @@ export function getSession(): Promise<SessionStatus> {
 
 export function listSources(): Promise<WeekSources[]> {
   return get('/api/sources')
+}
+
+export async function uploadSources(week: number, files: File[]): Promise<UploadSourcesResponse> {
+  const formData = new FormData()
+  formData.append('week', String(week))
+  for (const file of files) formData.append('files', file)
+
+  // Not the shared `request()` helper: it always sets Content-Type: application/json,
+  // which would break multipart/form-data — the browser must set that header itself, with
+  // the boundary it picked, or the server can't parse the body at all.
+  const res = await fetch(`${API_BASE_URL}/api/sources/upload`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+  if (!res.ok) {
+    throw new Error(`upload failed (${res.status}): ${await res.text()}`)
+  }
+  return res.json() as Promise<UploadSourcesResponse>
+}
+
+export function generateQuestions(week: number, force = false): Promise<GenerateResponse> {
+  return post('/api/sources/generate', { week, force })
 }
 
 // --- homework (public) ---
