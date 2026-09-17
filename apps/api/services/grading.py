@@ -109,7 +109,7 @@ _WHITESPACE_RUN = re.compile(r"\s+")
 
 def normalize_response_text(text: str) -> str:
     """Normalization for the answer cache key only — unrelated to CLAUDE.md invariant 1's
-    `_collapse_whitespace` (that one governs literal `support_quote` matching). Here we
+    `collapse_whitespace` (that one governs literal `support_quote` matching). Here we
     also casefold, since two submissions that are the same answer modulo case should share
     one cached grading."""
     return _WHITESPACE_RUN.sub(" ", text).strip().casefold()

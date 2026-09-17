@@ -7,6 +7,11 @@ from typing import Protocol
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Shared with apps/api/services/budget.py: the daily token budget's worst-case estimate for
+# one call is (prompt tokens) + MAX_OUTPUT_TOKENS, so the two must agree with what
+# AnthropicLLMClient actually asks the API for.
+MAX_OUTPUT_TOKENS = 4096
+
 
 class LLMClient(Protocol):
     """A chat completion that is expected to return JSON as plain text.
@@ -48,7 +53,7 @@ class AnthropicLLMClient:
     async def complete_json(self, *, system: str, user: str) -> str:
         response = await self._client.messages.create(
             model=self.model_name,
-            max_tokens=4096,
+            max_tokens=MAX_OUTPUT_TOKENS,
             system=system,
             messages=[{"role": "user", "content": user}],
         )

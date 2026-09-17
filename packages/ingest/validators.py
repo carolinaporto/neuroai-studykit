@@ -2,7 +2,7 @@
 the `GeneratedItem` Pydantic schema (see `generator.py`).
 
 CLAUDE.md invariant 1: `support_quote` must appear **literally** in the chunk text, modulo
-exactly one normalization — see `_collapse_whitespace` — and nothing beyond it. Never widen
+exactly one normalization — see `collapse_whitespace` — and nothing beyond it. Never widen
 that to fuzzy/semantic similarity, and never add another normalization here without going
 back to CLAUDE.md first: this file is the one place that decision is made, so a future
 change here silently redefines what "literal" means for every item ever generated.
@@ -15,7 +15,7 @@ from .generated_item import GeneratedItem, ValidatedItem, ValidatedRubricPoint
 _WHITESPACE_RUN = re.compile(r"\s+")
 
 
-def _collapse_whitespace(text: str) -> str:
+def collapse_whitespace(text: str) -> str:
     """Collapses any run of space/tab/newline to a single space and trims both ends —
     nothing else (no case-folding, no punctuation/quote/unicode normalization).
 
@@ -33,9 +33,9 @@ class ItemRejected(Exception):
 
 
 def check_quotes_in_chunk(item: GeneratedItem, chunk_text: str) -> None:
-    normalized_chunk = _collapse_whitespace(chunk_text)
+    normalized_chunk = collapse_whitespace(chunk_text)
     for point in item.rubric:
-        if _collapse_whitespace(point.support_quote) not in normalized_chunk:
+        if collapse_whitespace(point.support_quote) not in normalized_chunk:
             raise ItemRejected(
                 f"support_quote not found verbatim in chunk: {point.support_quote!r}"
             )
@@ -47,9 +47,9 @@ def check_not_self_answerable(item: GeneratedItem) -> None:
     whitespace-collapse rule as `check_quotes_in_chunk`, applied consistently: it's the same
     "does this literal quote appear in this text" comparison, just against `item.prompt`
     instead of the chunk."""
-    normalized_prompt = _collapse_whitespace(item.prompt)
+    normalized_prompt = collapse_whitespace(item.prompt)
     for point in item.rubric:
-        if _collapse_whitespace(point.support_quote) in normalized_prompt:
+        if collapse_whitespace(point.support_quote) in normalized_prompt:
             raise ItemRejected(
                 f"item is self-answerable: support_quote leaks into its own prompt: "
                 f"{point.support_quote!r}"

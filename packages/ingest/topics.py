@@ -50,6 +50,16 @@ class TopicsVocabulary(BaseModel):
     cross_cutting: list[TopicEntry] = Field(default_factory=list)
     units: list[Unit]
 
+    def title_for_week(self, week: int) -> str | None:
+        """The unit title for a syllabus week (e.g. "Learning, development, and the growth
+        of intelligence" for week 3) — used by the Sources page's week header. `None` for a
+        week with no matching unit, same fallback behavior as `topics_for_week` but without
+        raising, since listing sources for an unmapped week is a normal read, not a
+        generation-time error."""
+        lookup_week = FIXTURE_WEEK_ALIASES.get(week, week)
+        unit = next((u for u in self.units if u.week == lookup_week), None)
+        return unit.title if unit else None
+
     def topics_for_week(self, week: int) -> list[TopicEntry]:
         """Cross-cutting topics plus that week's unit topics — never the whole vocabulary,
         so the prompt stays focused (deprecated entries are never offered). Falls back to

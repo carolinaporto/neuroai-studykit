@@ -4,6 +4,7 @@ directly.
 """
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,12 +30,15 @@ class StudyQueueItem(BaseModel):
 
 
 class StudyAnswerRequest(BaseModel):
-    """Invariant 7: only `item_id` + the student's raw text, never a prompt."""
+    """Invariant 7: only `item_id` + the student's raw text, never a prompt.
+    `quiz_attempt_id` is optional — set when this answer is one item of a `QuizAttempt`
+    (see `POST /api/study/quiz`); omitted, it's a standalone answer outside any quiz."""
 
     model_config = ConfigDict(extra="forbid")
 
     item_id: uuid.UUID
     response_text: str
+    quiz_attempt_id: uuid.UUID | None = None
 
 
 class RubricHit(BaseModel):
@@ -58,3 +62,56 @@ class StudyAnswerResponse(BaseModel):
     reference_answer: str
     source: list[SourceExcerpt]
     cached: bool
+
+
+class StartQuizRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    week: int
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class StartQuizResponse(BaseModel):
+    quiz_attempt_id: uuid.UUID
+    week: int
+    items: list[StudyQueueItem]
+
+
+class QuizAttemptOut(BaseModel):
+    id: uuid.UUID
+    week: int
+    status: str
+    score: float | None
+    item_count: int
+    started_at: datetime
+    completed_at: datetime | None
+
+
+class WeekQuizzes(BaseModel):
+    """One entry per week that has at least one Item — a week with none simply doesn't
+    appear, same convention as `WeekSources`. The frontend treats "not listed" as locked."""
+
+    week: int
+    item_count: int
+    attempts: list[QuizAttemptOut]
+
+
+class QuizReviewItem(BaseModel):
+    """One item's full result inside a completed (or in-progress) QuizAttempt — the
+    "Review answers" screen. Flat rather than nesting `StudyQueueItem` + `StudyAnswerResponse`
+    because the review view needs both at once, keyed by item, not two separate lookups."""
+
+    item_id: uuid.UUID
+    prompt: str
+    response_text: str
+    score: float
+    rubric_hits: list[RubricHit]
+    misconceptions: list[str]
+    feedback_md: str
+    reference_answer: str
+    source: list[SourceExcerpt]
+
+
+class QuizReviewResponse(BaseModel):
+    quiz_attempt: QuizAttemptOut
+    results: list[QuizReviewItem]
