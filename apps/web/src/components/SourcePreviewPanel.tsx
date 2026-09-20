@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { getSource, sourceFileUrl } from '../api/client'
+import { deleteSource, getSource, sourceFileUrl } from '../api/client'
 import { formatLocator } from '../lib/locator'
+import { Button } from './Button'
 import './SourcePreviewPanel.css'
 
 // Only a PDF can be embedded natively in the browser — .pptx and transcripts fall back to
@@ -17,10 +18,30 @@ export function SourcePreviewPanel({
   widthPx: number
   onClose: () => void
 }) {
+  const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['source', sourceId],
     queryFn: () => getSource(sourceId),
   })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteSource(sourceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sources'] })
+      onClose()
+    },
+  })
+
+  function handleDelete() {
+    const title = query.data?.title ?? 'this source'
+    if (
+      window.confirm(
+        `Delete "${title}"? This removes it and every question generated from it. This can't be undone.`,
+      )
+    ) {
+      deleteMutation.mutate()
+    }
+  }
 
   return (
     <aside className="source-preview" style={{ width: widthPx }}>
@@ -41,14 +62,24 @@ export function SourcePreviewPanel({
 
       {query.data && (
         <>
-          <a
-            className="source-preview-download caption"
-            href={sourceFileUrl(sourceId)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open original file
-          </a>
+          <div className="source-preview-actions">
+            <a
+              className="source-preview-download caption"
+              href={sourceFileUrl(sourceId)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open original file
+            </a>
+            <Button variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete source'}
+            </Button>
+          </div>
+          {deleteMutation.isError && (
+            <p className="caption source-preview-error">
+              {(deleteMutation.error as Error).message}
+            </p>
+          )}
 
           {EMBEDDABLE_KINDS.has(query.data.kind) ? (
             <iframe

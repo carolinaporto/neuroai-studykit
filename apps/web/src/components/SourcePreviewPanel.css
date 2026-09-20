@@ -43,10 +43,21 @@
   outline-offset: 2px;
 }
 
+.source-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
 .source-preview-download {
   color: var(--accent-neuro);
   text-decoration: none;
-  align-self: flex-start;
+}
+
+.source-preview-error {
+  color: var(--danger);
   flex-shrink: 0;
 }
 

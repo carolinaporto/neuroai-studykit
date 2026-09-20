@@ -51,6 +51,10 @@ function patch<T>(path: string, body: unknown): Promise<T> {
   return request(path, { method: 'PATCH', body: JSON.stringify(body) })
 }
 
+function del<T>(path: string): Promise<T> {
+  return request(path, { method: 'DELETE' })
+}
+
 // --- auth ---
 
 export function login(password: string): Promise<SessionStatus> {
@@ -73,6 +77,10 @@ export function listSources(): Promise<WeekSources[]> {
 
 export function getSource(id: string): Promise<SourceDetail> {
   return get(`/api/sources/${id}`)
+}
+
+export function deleteSource(id: string): Promise<void> {
+  return del(`/api/sources/${id}`)
 }
 
 // Not a fetch wrapper — used directly as an <iframe>/<a> src so the browser (not our JS)

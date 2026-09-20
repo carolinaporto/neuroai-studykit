@@ -11,6 +11,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from apps.api.core.db import get_session
@@ -311,3 +312,60 @@ async def test_get_source_file_404_when_missing_on_disk() -> None:
             assert resp.status_code == 404
     finally:
         await _cleanup(session_factory, source_ids)
+
+
+@pytest.mark.asyncio
+async def test_delete_source_cascades_to_chunks() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    source_ids: list[uuid.UUID] = []
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        source = Source(
+            owner_id=owner_id,
+            week=6,
+            title="To be deleted",
+            kind=SourceKind.lecture_pdf,
+            storage_uri="deleted.pdf",
+            file_data=b"%PDF-fake",
+            file_media_type="application/pdf",
+            sha256=uuid.uuid4().hex + uuid.uuid4().hex,
+            status=SourceStatus.ingested,
+        )
+        session.add(source)
+        await session.flush()
+        session.add(
+            Chunk(
+                source_id=source.id,
+                ordinal=0,
+                text="text",
+                locators=[{"page": 1}],
+                token_count=5,
+            )
+        )
+        await session.commit()
+        source_ids = [source.id]
+        source_id = source.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.delete(f"/api/sources/{source_id}")
+            assert resp.status_code == 204
+
+        async with session_factory() as session:
+            assert await session.get(Source, source_id) is None
+            remaining_chunks = (
+                await session.scalars(select(Chunk).where(Chunk.source_id == source_id))
+            ).all()
+            assert remaining_chunks == []
+    finally:
+        await _cleanup(session_factory, source_ids)
+
+
+@pytest.mark.asyncio
+async def test_delete_source_404_for_unknown_id() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    async with _test_client(session_factory) as client:
+        resp = await client.delete(f"/api/sources/{uuid.uuid4()}")
+        assert resp.status_code == 404

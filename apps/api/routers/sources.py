@@ -151,6 +151,22 @@ async def get_source_file(
     return FileResponse(path, media_type=media_type)
 
 
+@router.delete("/{source_id}", status_code=204)
+async def delete_source(
+    source_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+) -> None:
+    """Cascades to Chunk and Item (both `ondelete="CASCADE"` — see packages/db/models.py),
+    which cascades again to Attempt. `QuizAttempt.item_ids` is a plain array, not a foreign
+    key, so a deleted item's id can linger in an old attempt's frozen list — already handled
+    defensively by `review_quiz`, which just skips an item_id it can't find, not a new
+    concern this endpoint introduces."""
+    source = await _get_owned_source(session, source_id, user_id)
+    await session.delete(source)
+    await session.commit()
+
+
 async def _ensure_owner(session: AsyncSession, owner_id: uuid.UUID) -> None:
     if await session.get(User, owner_id) is None:
         session.add(User(id=owner_id, email="owner@studykit.local"))
