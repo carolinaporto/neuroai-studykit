@@ -1,6 +1,8 @@
 import type {
   GenerateResponse,
   HomeworkOut,
+  ItemOut,
+  ItemPatchRequest,
   ItemSourceResponse,
   NoteCreateRequest,
   NoteOut,
@@ -15,6 +17,7 @@ import type {
   StudyQueueItem,
   UploadSourcesResponse,
   WeekQuizzes,
+  WeekReviewQueue,
   WeekSources,
 } from './types'
 
@@ -110,6 +113,16 @@ export async function uploadSources(week: number, files: File[]): Promise<Upload
 
 export function generateQuestions(week: number, force = false): Promise<GenerateResponse> {
   return post('/api/sources/generate', { week, force })
+}
+
+// --- items / review (M6) ---
+
+export function listReviewQueue(): Promise<WeekReviewQueue[]> {
+  return get('/api/items/review')
+}
+
+export function patchItem(id: string, body: ItemPatchRequest): Promise<ItemOut> {
+  return patch(`/api/items/${id}`, body)
 }
 
 // --- homework (public) ---

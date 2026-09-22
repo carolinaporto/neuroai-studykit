@@ -68,9 +68,16 @@ CHUNK_TEXT = (
 
 async def _make_item(
     session_factory: async_sessionmaker,
+    *,
+    status: ItemStatus = ItemStatus.approved,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """Creates User (if missing) + Source + Chunk + Item rows for one test. Returns
-    (item_id, source_id) — deleting the source cascades to chunk/item/attempt."""
+    (item_id, source_id) — deleting the source cascades to chunk/item/attempt.
+
+    `status` defaults to `approved`, not the model's own `draft` default: most of these
+    tests exercise `/api/study/*`, and since M6 that only serves studyable items (see
+    `STUDYABLE_STATUSES` in `apps/api/routers/study.py`) — pass `status=ItemStatus.draft`
+    explicitly for a test that means to exercise the gate itself."""
     settings = DbSettings()
     async with session_factory() as session:
         if await session.get(User, settings.dev_owner_id) is None:
@@ -112,6 +119,7 @@ async def _make_item(
             difficulty=2,
             bloom=ItemBloom.understand,
             topics=["hebbian-plasticity"],
+            status=status,
             gen_model="test",
             gen_prompt_version="test",
         )
@@ -121,11 +129,15 @@ async def _make_item(
 
 
 async def _make_items_for_week(
-    session_factory: async_sessionmaker, week: int, count: int = 2
+    session_factory: async_sessionmaker,
+    week: int,
+    count: int = 2,
+    *,
+    status: ItemStatus = ItemStatus.approved,
 ) -> tuple[list[uuid.UUID], uuid.UUID]:
     """Like `_make_item` but creates `count` items under one Source/Chunk for a given
     week — what the quiz flow needs (a single item can't exercise "does the attempt
-    complete once every item is answered")."""
+    complete once every item is answered"). Same `status` default and rationale."""
     settings = DbSettings()
     async with session_factory() as session:
         if await session.get(User, settings.dev_owner_id) is None:
@@ -162,6 +174,7 @@ async def _make_items_for_week(
                 difficulty=2,
                 bloom=ItemBloom.understand,
                 topics=["hebbian-plasticity"],
+                status=status,
                 gen_model="test",
                 gen_prompt_version="test",
             )
@@ -522,7 +535,7 @@ async def test_patch_item_rejects_rubric_with_non_positive_weight() -> None:
 @pytest.mark.asyncio
 async def test_patch_item_accepts_valid_rubric_edit() -> None:
     session_factory = make_session_factory(DbSettings().database_url)
-    item_id, source_id = await _make_item(session_factory)
+    item_id, source_id = await _make_item(session_factory, status=ItemStatus.draft)
 
     edited_rubric = [
         {**RUBRIC[0], "point": "Edited wording of the same rubric point."},
@@ -712,3 +725,30 @@ async def test_answer_rejects_once_quiz_attempt_is_completed() -> None:
     finally:
         await _cleanup(session_factory, source_id)
         await _cleanup_quiz_attempts(session_factory, 7006)
+
+
+@pytest.mark.asyncio
+async def test_draft_item_is_invisible_to_the_study_queue_and_the_quiz() -> None:
+    """M6's gate: a `draft` item never reaches a student, only `approved`/`edited` do —
+    only the review queue's own `PATCH /api/items/{id}` (tested in tests/test_api_items.py)
+    is a door into either of those statuses."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    item_id, source_id = await _make_item(session_factory, status=ItemStatus.draft)
+    item_ids, week_source_id = await _make_items_for_week(
+        session_factory, week=7007, count=1, status=ItemStatus.draft
+    )
+
+    try:
+        async with _test_client(session_factory) as client:
+            session_resp = await client.post("/api/study/session", json={"limit": 50})
+            assert str(item_id) not in {row["id"] for row in session_resp.json()}
+
+            weeks = await client.get("/api/study/weeks")
+            assert all(w["week"] != 7007 for w in weeks.json())
+
+            quiz_resp = await client.post("/api/study/quiz", json={"week": 7007, "limit": 10})
+            assert quiz_resp.status_code == 404
+    finally:
+        await _cleanup(session_factory, source_id)
+        await _cleanup(session_factory, week_source_id)
+        assert item_ids  # keep the created ids referenced for clarity

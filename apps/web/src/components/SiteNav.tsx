@@ -6,6 +6,7 @@ import {
   LockIcon,
   NotesIcon,
   OverviewIcon,
+  ReviewIcon,
   SourcesIcon,
 } from './icons'
 import './SiteNav.css'
@@ -31,6 +32,7 @@ interface SiteNavProps {
 
 const lockedItems = [
   { label: 'Sources', path: '/sources', Icon: SourcesIcon },
+  { label: 'Review', path: '/review', Icon: ReviewIcon },
   { label: 'Quizzes', path: '/quizzes', Icon: CheckTargetIcon },
   { label: 'Notes & Insights', path: '/notes', Icon: NotesIcon },
 ]

@@ -1,0 +1,12 @@
+.review-lede {
+  color: var(--ink-soft);
+  max-width: 640px;
+  margin-top: 0;
+}
+
+.review-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+}

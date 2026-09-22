@@ -54,6 +54,16 @@ export function CheckTargetIcon(props: IconProps) {
   )
 }
 
+export function ReviewIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="6" y="4" width="12" height="16" rx="2" />
+      <path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" />
+      <path d="M9 12.5l2 2 4-4.5" />
+    </Icon>
+  )
+}
+
 export function NotesIcon(props: IconProps) {
   return (
     <Icon {...props}>

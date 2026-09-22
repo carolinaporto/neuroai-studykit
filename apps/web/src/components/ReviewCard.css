@@ -1,0 +1,86 @@
+.rc-card {
+  width: 224px;
+  background: var(--surface-100);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rc-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rc-wk {
+  background: var(--surface-200);
+  color: var(--ink-soft);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.rc-eyebrow {
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.rc-title {
+  color: var(--ink);
+  margin-top: -2px;
+}
+
+.rc-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.rc-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-neuro-soft);
+  color: var(--accent-neuro);
+}
+
+.rc-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.rc-meta {
+  color: var(--ink-soft);
+}
+
+.rc-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  text-align: center;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  background: var(--accent-neuro);
+  color: var(--on-fill);
+}
+
+.rc-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

@@ -7,8 +7,11 @@ Two ways to answer an item, sharing the same grading pipeline:
 - As part of a `QuizAttempt` (`POST /api/study/quiz` to start one, then `POST
   /api/study/answer` with that `quiz_attempt_id` for each item) — a week-scoped, resumable,
   repeatable attempt. Design decision from that conversation: a week's quiz is "available"
-  once the week has any Items at all (no separate approval gate — M6 doesn't exist yet), and
-  a week can have any number of attempts, not one slot that locks after use.
+  once the week has any *studyable* Item (M6: `status` in `STUDYABLE_STATUSES`, below), and a
+  week can have any number of attempts, not one slot that locks after use. A `draft` item
+  never appears here — that's the whole point of the M6 review queue
+  (`GET /api/items/review`, `apps/api/routers/items.py`): it's the only door into
+  `approved`/`edited`.
 
 Locked section per `design/synapse`'s `SiteNav`: `require_owner` gates the whole router.
 
@@ -68,6 +71,11 @@ from packages.db.models import (
 
 router = APIRouter(prefix="/api/study", tags=["study"], dependencies=[Depends(require_owner)])
 
+# M6: an item must clear the review queue before a student can be quizzed on it. `edited`
+# counts as reviewed too — saving an edit in the review UI is itself a review decision, not
+# a reason to make the reviewer click Approve again right after.
+STUDYABLE_STATUSES = (ItemStatus.approved, ItemStatus.edited)
+
 
 def _queue_item(item: Item) -> StudyQueueItem:
     return StudyQueueItem(
@@ -81,7 +89,7 @@ async def start_session(
     body: StudySessionRequest,
     session: AsyncSession = Depends(get_session),
 ) -> list[StudyQueueItem]:
-    stmt = select(Item).where(Item.status != ItemStatus.retired)
+    stmt = select(Item).where(Item.status.in_(STUDYABLE_STATUSES))
     if body.week is not None:
         stmt = stmt.join(Source, Source.id == Item.source_id).where(Source.week == body.week)
     if body.topics:
@@ -185,7 +193,7 @@ async def start_quiz(
     stmt = (
         select(Item)
         .join(Source, Source.id == Item.source_id)
-        .where(Source.week == body.week, Item.status != ItemStatus.retired)
+        .where(Source.week == body.week, Item.status.in_(STUDYABLE_STATUSES))
         .order_by(Item.created_at)
         .limit(body.limit)
     )
@@ -227,7 +235,7 @@ async def list_quiz_weeks(
         await session.execute(
             select(Source.week, func.count(Item.id))
             .join(Item, Item.source_id == Source.id)
-            .where(Item.status != ItemStatus.retired, Source.week.is_not(None))
+            .where(Item.status.in_(STUDYABLE_STATUSES), Source.week.is_not(None))
             .group_by(Source.week)
         )
     ).all()

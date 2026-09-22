@@ -8,6 +8,7 @@ import {
   HomeworkIcon,
   LockIcon,
   NotesIcon,
+  ReviewIcon,
   SourcesIcon,
 } from '../components/icons'
 import './OverviewPage.css'
@@ -27,6 +28,14 @@ const SECTIONS: Section[] = [
       'Class PDFs, slides and transcripts, grouped by week — what every quiz question is anchored to.',
     path: '/sources',
     Icon: SourcesIcon,
+    isPublic: false,
+  },
+  {
+    label: 'Review',
+    description:
+      'Approve, edit or retire draft questions before they can reach a quiz — the chunk they cite sits right next to them.',
+    path: '/review',
+    Icon: ReviewIcon,
     isPublic: false,
   },
   {

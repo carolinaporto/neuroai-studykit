@@ -188,3 +188,58 @@ export interface ItemSourceResponse {
   locator: Locator
   text: string
 }
+
+// --- items / review (M6) ---
+
+export interface RubricPoint {
+  id: string
+  point: string
+  weight: number
+  support_quote: string
+}
+
+export type ItemStatus = 'draft' | 'approved' | 'edited' | 'retired'
+
+export interface ItemOut {
+  id: string
+  source_id: string
+  chunk_ids: string[]
+  type: string
+  prompt: string
+  reference_answer: string
+  rubric: RubricPoint[]
+  choices: Record<string, unknown> | null
+  difficulty: number
+  bloom: string
+  topics: string[]
+  status: ItemStatus
+}
+
+export interface ReviewChunkOut {
+  locator: Locator
+  text: string
+}
+
+export interface ReviewItemOut extends ItemOut {
+  chunk: ReviewChunkOut
+  gen_model: string
+}
+
+export interface WeekReviewQueue {
+  week: number
+  title: string | null
+  items: ReviewItemOut[]
+}
+
+// All optional: only what's set gets sent. Mirrors apps/api/schemas/items.py's
+// ItemPatchRequest.
+export interface ItemPatchRequest {
+  status?: ItemStatus
+  prompt?: string
+  reference_answer?: string
+  rubric?: RubricPoint[]
+  difficulty?: number
+  bloom?: string
+  topics?: string[]
+  choices?: Record<string, unknown> | null
+}

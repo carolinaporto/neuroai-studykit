@@ -35,3 +35,23 @@ class ItemOut(BaseModel):
     bloom: str
     topics: list[str]
     status: str
+
+
+class ReviewChunkOut(BaseModel):
+    """Same shape as `apps/api/schemas/study.py`'s `ItemSourceResponse` — the item's anchor
+    chunk, embedded directly in the review queue response so the review UI never has to make
+    a second round trip per item just to show what it's ancored to."""
+
+    locator: dict
+    text: str
+
+
+class ReviewItemOut(ItemOut):
+    chunk: ReviewChunkOut
+    gen_model: str
+
+
+class WeekReviewQueue(BaseModel):
+    week: int
+    title: str | None
+    items: list[ReviewItemOut]
