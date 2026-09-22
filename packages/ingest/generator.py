@@ -2,7 +2,7 @@
 
 CLAUDE.md invariant 5: the only way this module talks to an LLM is through `LLMClient`
 (`packages/core/llm.py`); tests inject `FakeLLM`. The prompt itself is the versioned file
-`prompts/generate_v2.md`, never an inline string — its sha256 becomes `Item.gen_prompt_version`
+`prompts/generate_v3.md`, never an inline string — its sha256 becomes `Item.gen_prompt_version`
 so you can tell which questions came from which prompt version later. Old prompt files (e.g.
 `generate_v1.md`) are never edited in place and never deleted once items have been generated
 from them — they're what makes `gen_prompt_version` a meaningful diff key instead of just a
@@ -29,7 +29,7 @@ from .generated_item import GeneratedItem, RejectedItem, ValidatedItem
 from .topics import TopicEntry, TopicsVocabulary
 from .validators import ItemRejected, validate_generated_item
 
-PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_v2.md"
+PROMPT_PATH = Path(__file__).parent / "prompts" / "generate_v3.md"
 MAX_ATTEMPTS = 2  # 1 try + 1 retry, per CLAUDE.md
 
 SYSTEM_PROMPT = (

@@ -34,7 +34,11 @@ class GeneratedItem(BaseModel):
     rubric: list[GeneratedRubricPoint] = Field(min_length=2, max_length=5)
     difficulty: int = Field(ge=1, le=5)
     bloom: Bloom
-    topics: list[str] = Field(min_length=1)
+    # May be empty: a chunk whose concepts the week's vocabulary doesn't cover puts them in
+    # `proposed_topics` instead. An untagged item is still anchored and gradable; rejecting it
+    # over a tag threw away good questions (seen on a week whose content drifted from
+    # topics.yaml).
+    topics: list[str]
     proposed_topics: list[str] = Field(default_factory=list)
 
 

@@ -39,6 +39,7 @@ from packages.ingest.cli import (
     page_count_for,
 )
 from packages.ingest.topics import load_topics
+from packages.ingest.transcribe import parse_pdf_with_scans
 
 router = APIRouter(prefix="/api/sources", tags=["sources"], dependencies=[Depends(require_owner)])
 
@@ -179,9 +180,13 @@ async def upload_sources(
     files: list[UploadFile] = File(...),
     session: AsyncSession = Depends(get_session),
     user_id: uuid.UUID = Depends(get_current_user_id),
+    llm: LLMClient = Depends(get_llm_client),
 ) -> UploadSourcesResponse:
-    """Drag-a-folder-in equivalent of `python -m ingest.cli sync` — parse + chunk only, no
-    LLM call, so this endpoint costs nothing to hit. `week` comes from the form (there is no
+    """Drag-a-folder-in equivalent of `python -m ingest.cli sync` — parse + chunk, and no LLM
+    call *unless* a PDF has scanned pages (handwritten notes, a phone scan): those are read by
+    a vision model, one paid call per page (`packages/ingest/transcribe.py`), and the
+    transcription becomes the chunk text. Every other file costs nothing to upload. `week`
+    comes from the form (there is no
     `weekNN/` folder name to infer it from, unlike the CLI), same file types the CLI
     supports (`packages/ingest/cli.py`'s `PARSERS`) — anything else comes back
     `unsupported`, not silently dropped. The file itself is stored in Postgres
@@ -234,7 +239,11 @@ async def upload_sources(
         await session.commit()
 
         try:
-            blocks = PARSERS[ext](data)
+            transcribed_pages: list[int] = []
+            if ext == ".pdf":
+                blocks, transcribed_pages = await parse_pdf_with_scans(data, llm)
+            else:
+                blocks = PARSERS[ext](data)
             chunks = chunk_blocks(blocks)
             for chunk in chunks:
                 session.add(
@@ -251,7 +260,11 @@ async def upload_sources(
             source.status = SourceStatus.ingested
             source.ingested_at = datetime.now(UTC)
             job.status = IngestJobStatus.done
-            job.payload = {"filename": filename, "chunk_count": len(chunks)}
+            job.payload = {
+                "filename": filename,
+                "chunk_count": len(chunks),
+                "transcribed_pages": transcribed_pages,
+            }
             await session.commit()
             results.append(
                 UploadResult(filename=filename, status="ingested", chunk_count=len(chunks))

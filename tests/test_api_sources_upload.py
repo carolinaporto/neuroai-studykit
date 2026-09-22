@@ -19,8 +19,18 @@ from apps.api.core.db import get_session, get_session_factory
 from apps.api.core.deps import get_llm_client, require_owner
 from apps.api.main import app
 from packages.core.llm import FakeLLM, LLMClient
-from packages.db.models import Chunk, Item, Source, SourceKind, SourceStatus, User
+from packages.db.models import (
+    Chunk,
+    IngestJob,
+    IngestJobStatus,
+    Item,
+    Source,
+    SourceKind,
+    SourceStatus,
+    User,
+)
 from packages.db.session import DbSettings, make_session_factory
+from tests.pdf_builders import build_pdf, scanned_page, text_page
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -40,8 +50,11 @@ async def _test_client(
     # session_factory's original event loop instead of this test's.
     app.dependency_overrides[get_session_factory] = lambda: session_factory
     app.dependency_overrides[require_owner] = lambda: None
-    if llm is not None:
-        app.dependency_overrides[get_llm_client] = lambda: llm
+    # Always overridden: upload can call the LLM now (scanned PDF pages), and no test may
+    # reach the real API (invariant 5) — a test that forgets to pass one gets an empty fake
+    # that raises if it is ever called.
+    fake = llm if llm is not None else FakeLLM([])
+    app.dependency_overrides[get_llm_client] = lambda: fake
     try:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -50,8 +63,7 @@ async def _test_client(
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_session_factory, None)
         app.dependency_overrides.pop(require_owner, None)
-        if llm is not None:
-            app.dependency_overrides.pop(get_llm_client, None)
+        app.dependency_overrides.pop(get_llm_client, None)
 
 
 async def _ensure_owner(session: AsyncSession, owner_id: uuid.UUID) -> None:
@@ -166,6 +178,90 @@ async def test_upload_flags_unsupported_extension_without_failing_the_batch() ->
             results = {r["filename"]: r["status"] for r in resp.json()["results"]}
             assert results["notes.docx"] == "unsupported"
             assert results["lecture.pdf"] == "ingested"
+    finally:
+        await _cleanup_week(session_factory, week)
+
+
+@pytest.mark.asyncio
+async def test_upload_transcribes_scanned_pages_into_the_chunk_text() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    week = 8003
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        await session.commit()
+
+    pdf_bytes = build_pdf(text_page, scanned_page)
+    await _cleanup_by_sha256(session_factory, pdf_bytes)
+    transcription = "Week 3 notes: intelligence is not one scale of nature"
+    llm = FakeLLM([], vision_responses=[transcription])
+
+    try:
+        async with _test_client(session_factory, llm) as client:
+            resp = await client.post(
+                "/api/sources/upload",
+                data={"week": str(week)},
+                files=[("files", ("notes.pdf", pdf_bytes, "application/pdf"))],
+            )
+            assert resp.status_code == 200
+            assert resp.json()["results"][0]["status"] == "ingested"
+
+        assert len(llm.vision_calls) == 1
+        async with session_factory() as session:
+            source = await session.scalar(select(Source).where(Source.week == week))
+            chunk_text = " ".join(
+                (
+                    await session.scalars(
+                        select(Chunk.text)
+                        .where(Chunk.source_id == source.id)
+                        .order_by(Chunk.ordinal)
+                    )
+                ).all()
+            )
+            assert transcription in chunk_text
+            job = await session.scalar(
+                select(IngestJob).where(IngestJob.source_id == source.id)
+            )
+            assert job.payload["transcribed_pages"] == [2]
+    finally:
+        await _cleanup_week(session_factory, week)
+
+
+@pytest.mark.asyncio
+async def test_upload_of_a_scan_fails_cleanly_when_the_transcription_call_fails() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    week = 8004
+
+    async with session_factory() as session:
+        await _ensure_owner(session, owner_id)
+        await session.commit()
+
+    pdf_bytes = build_pdf(scanned_page)
+    await _cleanup_by_sha256(session_factory, pdf_bytes)
+    llm = FakeLLM([], vision_responses=[RuntimeError("api down"), RuntimeError("api down")])
+
+    try:
+        async with _test_client(session_factory, llm) as client:
+            resp = await client.post(
+                "/api/sources/upload",
+                data={"week": str(week)},
+                files=[("files", ("scan.pdf", pdf_bytes, "application/pdf"))],
+            )
+            assert resp.status_code == 200
+            result = resp.json()["results"][0]
+            assert result["status"] == "failed"
+            assert "api down" in result["error"]
+
+        async with session_factory() as session:
+            source = await session.scalar(select(Source).where(Source.week == week))
+            assert source.status == SourceStatus.failed
+            job = await session.scalar(
+                select(IngestJob).where(IngestJob.source_id == source.id)
+            )
+            assert job.status == IngestJobStatus.failed
+            assert "page 1" in job.error
     finally:
         await _cleanup_week(session_factory, week)
 

@@ -242,6 +242,35 @@ async def test_unknown_topic_is_rejected() -> None:
 
 
 @pytest.mark.asyncio
+async def test_item_with_no_matching_topic_is_kept_untagged() -> None:
+    """A chunk whose concepts the week's vocabulary doesn't cover comes back with
+    `topics: []` and the concept in `proposed_topics`. The item is anchored and gradable, so
+    it must be saved untagged — not rejected over a tag."""
+    llm = FakeLLM(
+        [
+            json.dumps(
+                {
+                    "items": [
+                        _good_item(
+                            topics=[], proposed_topics=["evolutionary views of intelligence"]
+                        )
+                    ]
+                }
+            )
+        ]
+    )
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.rejected == []
+    assert len(result.items) == 1
+    assert result.items[0].topics == []
+    assert result.proposed_topics == ["evolutionary views of intelligence"]
+
+
+@pytest.mark.asyncio
 async def test_proposed_topics_are_collected_but_never_persisted() -> None:
     llm = FakeLLM(
         [json.dumps({"items": [_good_item(proposed_topics=["synaptic tagging and capture"])]})]
