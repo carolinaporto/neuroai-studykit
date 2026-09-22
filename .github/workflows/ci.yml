@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      # Fails if uv.lock has drifted from pyproject.toml, not just an install.
+      - run: uv sync --locked
+
+      # Reuses docker-compose.yml as-is: same image, same port (5433), same
+      # docker/init-pgvector.sql mount that creates the `vector` extension — so
+      # DbSettings/Settings' database_url default already points at it, no env vars
+      # needed. --wait blocks on the compose file's own healthcheck.
+      - run: docker compose up -d --wait
+
+      - run: uv run alembic upgrade head
+
+      # Not `--fix`: CI must fail on a finding, not silently rewrite it and pass.
+      - run: uv run ruff check .
+
+      - run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+
+      # Same type-check `npm run build` starts with.
+      - run: npx tsc -b
+
+      - run: npx eslint .
+
+      # Not `--write`: CI must fail on a finding, not silently rewrite it and pass.
+      - run: npx prettier --check .
+
+      # Bare `npm test` runs vitest in watch mode and never exits — `--run` is what
+      # the Makefile's test-web target already uses, for the same reason.
+      - run: npm test -- --run
