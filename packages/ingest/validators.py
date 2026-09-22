@@ -8,6 +8,7 @@ back to CLAUDE.md first: this file is the one place that decision is made, so a 
 change here silently redefines what "literal" means for every item ever generated.
 """
 
+import random
 import re
 
 from .generated_item import GeneratedItem, ValidatedItem, ValidatedRubricPoint
@@ -89,11 +90,22 @@ def validate_generated_item(
         )
         for i, p in enumerate(item.rubric, start=1)
     ]
+
+    choices = None
+    if item.choices is not None:
+        # Our code decides presentation order, never the model's raw one — same reasoning as
+        # assigning rubric point ids above: shuffled once here, at save time, so the correct
+        # option isn't always wherever the model happened to put it.
+        options = list(item.choices.options)
+        random.shuffle(options)
+        choices = {"options": options}
+
     return ValidatedItem(
         type=item.type,
         prompt=item.prompt,
         reference_answer=item.reference_answer,
         rubric=rubric,
+        choices=choices,
         difficulty=item.difficulty,
         bloom=item.bloom,
         topics=topics,

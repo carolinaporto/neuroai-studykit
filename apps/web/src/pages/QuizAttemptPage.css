@@ -9,6 +9,18 @@
   color: var(--ink);
 }
 
+.quiz-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quiz-choice {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
 .quiz-textarea {
   min-height: 160px;
   font-family: var(--font-sans);

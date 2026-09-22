@@ -159,6 +159,18 @@ export function QuizAttemptPage() {
     })
   }
 
+  // mcq: clicking an option answers immediately — no separate submit step, standard mcq UX.
+  // The option's own text is what apps/api/services/grading.py's grade_exact_match compares
+  // against reference_answer, so there's nothing else to send.
+  function handleSelectOption(option: string) {
+    if (!currentItem || !attemptId || answerMutation.isPending) return
+    answerMutation.mutate({
+      item_id: currentItem.id,
+      response_text: option,
+      quiz_attempt_id: attemptId,
+    })
+  }
+
   function handleSkip() {
     if (!currentItem) return
     setSkippedIds((prev) => (prev.includes(currentItem.id) ? prev : [...prev, currentItem.id]))
@@ -247,21 +259,39 @@ export function QuizAttemptPage() {
       ) : currentItem ? (
         <>
           <p className="body quiz-prompt">{currentItem.prompt}</p>
-          <textarea
-            ref={textareaRef}
-            className="quiz-textarea"
-            placeholder="Type your answer from memory…"
-            value={responseText}
-            onChange={(e) => setResponseText(e.target.value)}
-            autoFocus
-          />
+          {currentItem.type === 'mcq' && currentItem.choices ? (
+            <div className="quiz-choices">
+              {currentItem.choices.options.map((option) => (
+                <Button
+                  key={option}
+                  variant="secondary"
+                  className="quiz-choice"
+                  onClick={() => handleSelectOption(option)}
+                  disabled={answerMutation.isPending}
+                >
+                  {option}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              className="quiz-textarea"
+              placeholder="Type your answer from memory…"
+              value={responseText}
+              onChange={(e) => setResponseText(e.target.value)}
+              autoFocus
+            />
+          )}
           <div className="quiz-actions">
-            <Button
-              onClick={handleSubmit}
-              disabled={responseText.trim() === '' || answerMutation.isPending}
-            >
-              {answerMutation.isPending ? 'Grading…' : 'Submit (Ctrl+Enter)'}
-            </Button>
+            {currentItem.type !== 'mcq' && (
+              <Button
+                onClick={handleSubmit}
+                disabled={responseText.trim() === '' || answerMutation.isPending}
+              >
+                {answerMutation.isPending ? 'Grading…' : 'Submit (Ctrl+Enter)'}
+              </Button>
+            )}
             {!currentItemWasSkipped && (
               <Button variant="secondary" onClick={handleSkip} disabled={answerMutation.isPending}>
                 I don't know this — show me the material

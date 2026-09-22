@@ -53,8 +53,10 @@ from apps.api.services.budget import (
     estimate_call_tokens,
 )
 from apps.api.services.grading import (
+    DETERMINISTIC_TYPES,
     GradingFailedError,
     compute_score,
+    grade_exact_match,
     grade_response,
     response_hash_for,
 )
@@ -80,7 +82,7 @@ STUDYABLE_STATUSES = (ItemStatus.approved, ItemStatus.edited)
 def _queue_item(item: Item) -> StudyQueueItem:
     return StudyQueueItem(
         id=item.id, type=item.type, prompt=item.prompt, difficulty=item.difficulty,
-        bloom=item.bloom, topics=item.topics,
+        bloom=item.bloom, topics=item.topics, choices=item.choices,
     )
 
 
@@ -379,6 +381,40 @@ async def answer(
         await _maybe_complete_quiz(session, quiz_attempt)
         await session.commit()
         return _attempt_to_response(attempt, item, chunks, cached=True)
+
+    if item.type in DETERMINISTIC_TYPES:
+        # M7: cloze/mcq skip the LLM grader entirely (ARCHITECTURE.md §5) — no prompt to
+        # build, no budget to check, no tokens spent.
+        started = time.monotonic()
+        covered_by_id, feedback_md = grade_exact_match(
+            rubric=item.rubric,
+            reference_answer=item.reference_answer,
+            response_text=body.response_text,
+        )
+        latency_ms = int((time.monotonic() - started) * 1000)
+        score = compute_score(item.rubric, covered_by_id)
+        attempt = Attempt(
+            user_id=user_id,
+            item_id=item.id,
+            quiz_attempt_id=quiz_attempt.id if quiz_attempt is not None else None,
+            response_text=body.response_text,
+            response_hash=response_hash,
+            score=score,
+            rubric_hits=[
+                {"point_id": pid, "covered": covered, "evidence": body.response_text}
+                for pid, covered in covered_by_id.items()
+            ],
+            misconceptions=[],
+            feedback_md=feedback_md,
+            grader_model="deterministic",
+            latency_ms=latency_ms,
+            tokens_used=0,
+        )
+        session.add(attempt)
+        if quiz_attempt is not None:
+            await _maybe_complete_quiz(session, quiz_attempt)
+        await session.commit()
+        return _attempt_to_response(attempt, item, chunks, cached=False)
 
     estimated_tokens = estimate_call_tokens(
         item.prompt, json.dumps(item.rubric), body.response_text

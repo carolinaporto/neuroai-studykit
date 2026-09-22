@@ -77,6 +77,8 @@ async def _make_item(
     week: int,
     status: ItemStatus,
     prompt: str = "Explain Hebbian plasticity from memory.",
+    item_type: ItemType = ItemType.free_recall,
+    rubric: list[dict] | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """Returns (item_id, source_id) — deleting the source cascades to chunk/item."""
     settings = DbSettings()
@@ -110,10 +112,10 @@ async def _make_item(
         item = Item(
             source_id=source.id,
             chunk_ids=[chunk.id],
-            type=ItemType.free_recall,
+            type=item_type,
             prompt=prompt,
             reference_answer="A reference answer.",
-            rubric=RUBRIC,
+            rubric=rubric if rubric is not None else RUBRIC,
             difficulty=2,
             bloom=ItemBloom.understand,
             topics=["hebbian-plasticity"],
@@ -222,3 +224,39 @@ async def test_item_leaves_the_review_queue_once_approved_or_retired() -> None:
             assert all(w["week"] != 8104 for w in after.json())
     finally:
         await _cleanup(session_factory, [approve_source, retire_source])
+
+
+@pytest.mark.asyncio
+async def test_rubric_edit_bound_is_type_aware() -> None:
+    """M7: `_validate_rubric_edit` must apply cloze/mcq's exactly-1-point rule, not the
+    free_recall/term_def 2-5 rule, to whichever item is being edited."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    cloze_id, cloze_source = await _make_item(
+        session_factory,
+        week=8105,
+        status=ItemStatus.draft,
+        item_type=ItemType.cloze,
+        prompt="_____ is often summarized as cells that fire together wire together.",
+        rubric=[RUBRIC[0]],
+    )
+    free_recall_id, free_recall_source = await _make_item(
+        session_factory, week=8105, status=ItemStatus.draft
+    )
+
+    try:
+        async with _test_client(session_factory) as client:
+            # A cloze item's 1-point rubric can be edited (still 1 point) without tripping
+            # the old flat "needs 2-5" bound.
+            cloze_resp = await client.patch(
+                f"/api/items/{cloze_id}",
+                json={"rubric": [{**RUBRIC[0], "point": "Edited wording."}]},
+            )
+            assert cloze_resp.status_code == 200
+
+            # A free_recall item still can't be shrunk to 1 point.
+            shrink_resp = await client.patch(
+                f"/api/items/{free_recall_id}", json={"rubric": [RUBRIC[0]]}
+            )
+            assert shrink_resp.status_code == 422
+    finally:
+        await _cleanup(session_factory, [cloze_source, free_recall_source])

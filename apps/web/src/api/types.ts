@@ -19,6 +19,8 @@ export interface StudyQueueItem {
   difficulty: number
   bloom: string
   topics: string[]
+  // Present only for `type === 'mcq'` — just the option texts, never which one is correct.
+  choices?: { options: string[] } | null
 }
 
 export interface StudyAnswerRequest {

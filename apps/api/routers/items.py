@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.core.db import get_session
 from apps.api.core.deps import require_owner
 from apps.api.schemas.items import ItemOut, ItemPatchRequest, ReviewItemOut, WeekReviewQueue
-from packages.db.models import Chunk, Item, ItemBloom, ItemStatus, Source
+from packages.db.models import Chunk, Item, ItemBloom, ItemStatus, ItemType, Source
 from packages.ingest.topics import load_topics
 from packages.ingest.validators import collapse_whitespace
 
@@ -65,13 +65,24 @@ async def list_review_queue(
     ]
 
 
-def _validate_rubric_edit(rubric: list[dict], chunk_text: str) -> None:
+_SINGLE_POINT_TYPES = {ItemType.cloze, ItemType.mcq}
+
+
+def _validate_rubric_edit(rubric: list[dict], chunk_text: str, item_type: ItemType) -> None:
     """Re-runs invariant 1's checks on a rubric coming through the edit endpoint. A rubric
     saved by the M3 generator already passed these at generation time; this endpoint is the
     other door into the same column, and CLAUDE.md invariant 1 doesn't carve out an
     exception for edits — a citation that isn't literally in the chunk is just as wrong
-    typed by a human as invented by the model."""
-    if not (MIN_RUBRIC_POINTS <= len(rubric) <= MAX_RUBRIC_POINTS):
+    typed by a human as invented by the model.
+
+    Bound depends on `item_type`, same split as `generated_item.py`'s
+    `_rubric_length_by_type`: `cloze`/`mcq` are graded by exact-match against
+    `reference_answer`, not rubric coverage, so they carry exactly 1 anchor point rather
+    than 2-5."""
+    if item_type in _SINGLE_POINT_TYPES:
+        if len(rubric) != 1:
+            raise ValueError(f"{item_type} items need exactly 1 rubric point, got {len(rubric)}")
+    elif not (MIN_RUBRIC_POINTS <= len(rubric) <= MAX_RUBRIC_POINTS):
         raise ValueError(
             f"rubric must have between {MIN_RUBRIC_POINTS} and {MAX_RUBRIC_POINTS} points, "
             f"got {len(rubric)}"
@@ -105,7 +116,7 @@ async def patch_item(
                 status_code=422, detail="item has no anchor chunk to validate rubric against"
             )
         try:
-            _validate_rubric_edit(updates["rubric"], chunk.text)
+            _validate_rubric_edit(updates["rubric"], chunk.text, item.type)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

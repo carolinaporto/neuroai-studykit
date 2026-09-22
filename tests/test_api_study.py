@@ -26,7 +26,7 @@ from apps.api.core.db import get_session
 from apps.api.core.deps import get_llm_client, require_owner
 from apps.api.main import app
 from apps.api.services.budget import estimate_call_tokens
-from apps.api.services.grading import compute_score
+from apps.api.services.grading import compute_score, grade_exact_match
 from packages.core.llm import FakeLLM, LLMClient
 from packages.db.models import (
     Attempt,
@@ -70,6 +70,11 @@ async def _make_item(
     session_factory: async_sessionmaker,
     *,
     status: ItemStatus = ItemStatus.approved,
+    item_type: ItemType = ItemType.free_recall,
+    prompt: str | None = None,
+    reference_answer: str | None = None,
+    rubric: list[dict] | None = None,
+    choices: dict | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """Creates User (if missing) + Source + Chunk + Item rows for one test. Returns
     (item_id, source_id) — deleting the source cascades to chunk/item/attempt.
@@ -77,7 +82,10 @@ async def _make_item(
     `status` defaults to `approved`, not the model's own `draft` default: most of these
     tests exercise `/api/study/*`, and since M6 that only serves studyable items (see
     `STUDYABLE_STATUSES` in `apps/api/routers/study.py`) — pass `status=ItemStatus.draft`
-    explicitly for a test that means to exercise the gate itself."""
+    explicitly for a test that means to exercise the gate itself.
+
+    `item_type`/`rubric`/`choices` default to a `free_recall` item with the 2-point
+    `RUBRIC` — M7's cloze/mcq tests pass a 1-point rubric and the matching type instead."""
     settings = DbSettings()
     async with session_factory() as session:
         if await session.get(User, settings.dev_owner_id) is None:
@@ -109,13 +117,16 @@ async def _make_item(
         item = Item(
             source_id=source.id,
             chunk_ids=[chunk.id],
-            type=ItemType.free_recall,
-            prompt="Explain what determines whether repeated neural activity leads to a "
+            type=item_type,
+            prompt=prompt
+            or "Explain what determines whether repeated neural activity leads to a "
             "lasting change in connection strength.",
-            reference_answer="A presynaptic neuron repeatedly helping drive a postsynaptic "
+            reference_answer=reference_answer
+            or "A presynaptic neuron repeatedly helping drive a postsynaptic "
             "neuron to fire strengthens their connection; a brief high-frequency burst can "
             "produce this kind of lasting increase in synaptic strength.",
-            rubric=RUBRIC,
+            rubric=rubric if rubric is not None else RUBRIC,
+            choices=choices,
             difficulty=2,
             bloom=ItemBloom.understand,
             topics=["hebbian-plasticity"],
@@ -236,6 +247,37 @@ async def test_compute_score_is_deterministic() -> None:
     covered = {"p1": True, "p2": False}
     scores = [compute_score(RUBRIC, covered) for _ in range(5)]
     assert scores == [1.0 / 3.0] * 5
+
+
+_SINGLE_POINT_RUBRIC = [RUBRIC[0]]
+
+
+@pytest.mark.asyncio
+async def test_grade_exact_match_is_a_pure_match_check() -> None:
+    """M7: cloze/mcq's whole grading logic, no LLM, no ORM object — see
+    apps/api/services/grading.py's docstring for why one function covers both types."""
+    covered, feedback = grade_exact_match(
+        rubric=_SINGLE_POINT_RUBRIC,
+        reference_answer="Hebbian plasticity",
+        response_text="Hebbian plasticity",
+    )
+    assert covered == {"p1": True}
+    assert feedback == "Correct."
+
+    covered, feedback = grade_exact_match(
+        rubric=_SINGLE_POINT_RUBRIC,
+        reference_answer="Hebbian plasticity",
+        response_text="  HEBBIAN   plasticity  ",  # normalize_response_text's job
+    )
+    assert covered == {"p1": True}
+
+    covered, feedback = grade_exact_match(
+        rubric=_SINGLE_POINT_RUBRIC,
+        reference_answer="Hebbian plasticity",
+        response_text="Long-term potentiation",
+    )
+    assert covered == {"p1": False}
+    assert "Hebbian plasticity" in feedback
 
 
 @pytest.mark.asyncio
@@ -752,3 +794,121 @@ async def test_draft_item_is_invisible_to_the_study_queue_and_the_quiz() -> None
         await _cleanup(session_factory, source_id)
         await _cleanup(session_factory, week_source_id)
         assert item_ids  # keep the created ids referenced for clarity
+
+
+@pytest.mark.asyncio
+async def test_mcq_is_graded_deterministically_with_zero_llm_calls() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    item_id, source_id = await _make_item(
+        session_factory,
+        item_type=ItemType.mcq,
+        prompt="Which mechanism is described as cells that fire together wiring together?",
+        reference_answer="Hebbian plasticity",
+        rubric=_SINGLE_POINT_RUBRIC,
+        choices={"options": ["Hebbian plasticity", "Long-term depression", "Apoptosis"]},
+    )
+    fake_llm = FakeLLM([])  # any LLM call at all raises inside the fake — the proof
+
+    try:
+        async with _test_client(session_factory, fake_llm) as client:
+            resp = await client.post(
+                "/api/study/answer",
+                json={"item_id": str(item_id), "response_text": "Hebbian plasticity"},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["score"] == pytest.approx(1.0)
+            assert body["rubric_hits"][0]["covered"] is True
+            assert fake_llm.calls == []
+
+        async with session_factory() as session:
+            attempt = await session.scalar(select(Attempt).where(Attempt.item_id == item_id))
+            assert attempt.tokens_used == 0
+            assert attempt.grader_model == "deterministic"
+    finally:
+        await _cleanup(session_factory, source_id)
+
+
+@pytest.mark.asyncio
+async def test_mcq_wrong_option_scores_zero() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    item_id, source_id = await _make_item(
+        session_factory,
+        item_type=ItemType.mcq,
+        reference_answer="Hebbian plasticity",
+        rubric=_SINGLE_POINT_RUBRIC,
+        choices={"options": ["Hebbian plasticity", "Long-term depression", "Apoptosis"]},
+    )
+    fake_llm = FakeLLM([])
+
+    try:
+        async with _test_client(session_factory, fake_llm) as client:
+            resp = await client.post(
+                "/api/study/answer",
+                json={"item_id": str(item_id), "response_text": "Apoptosis"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["score"] == pytest.approx(0.0)
+            assert fake_llm.calls == []
+    finally:
+        await _cleanup(session_factory, source_id)
+
+
+@pytest.mark.asyncio
+async def test_cloze_is_graded_deterministically_with_zero_llm_calls() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    item_id, source_id = await _make_item(
+        session_factory,
+        item_type=ItemType.cloze,
+        prompt="_____ is often summarized as cells that fire together wire together.",
+        reference_answer="Hebbian plasticity",
+        rubric=_SINGLE_POINT_RUBRIC,
+    )
+    fake_llm = FakeLLM([])
+
+    try:
+        async with _test_client(session_factory, fake_llm) as client:
+            wrong = await client.post(
+                "/api/study/answer",
+                json={"item_id": str(item_id), "response_text": "Long-term potentiation"},
+            )
+            assert wrong.status_code == 200
+            assert wrong.json()["score"] == pytest.approx(0.0)
+
+            correct = await client.post(
+                "/api/study/answer",
+                json={"item_id": str(item_id), "response_text": "hebbian   PLASTICITY"},
+            )
+            assert correct.status_code == 200
+            assert correct.json()["score"] == pytest.approx(1.0)
+            assert fake_llm.calls == []
+    finally:
+        await _cleanup(session_factory, source_id)
+
+
+@pytest.mark.asyncio
+async def test_quiz_queue_includes_choices_only_for_mcq_items() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    mcq_id, mcq_source = await _make_item(
+        session_factory,
+        item_type=ItemType.mcq,
+        reference_answer="Hebbian plasticity",
+        rubric=_SINGLE_POINT_RUBRIC,
+        choices={"options": ["Hebbian plasticity", "Long-term depression", "Apoptosis"]},
+    )
+    free_id, free_source = await _make_item(session_factory)
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.post("/api/study/session", json={"week": 999, "limit": 50})
+            rows = {row["id"]: row for row in resp.json()}
+            assert rows[str(mcq_id)]["choices"] is not None
+            assert set(rows[str(mcq_id)]["choices"]["options"]) == {
+                "Hebbian plasticity",
+                "Long-term depression",
+                "Apoptosis",
+            }
+            assert rows[str(free_id)]["choices"] is None
+    finally:
+        await _cleanup(session_factory, mcq_source)
+        await _cleanup(session_factory, free_source)

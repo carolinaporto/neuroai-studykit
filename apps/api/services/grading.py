@@ -120,6 +120,26 @@ def response_hash_for(item_id: object, response_text: str) -> str:
     return hashlib.sha256(f"{item_id}:{normalized}".encode()).hexdigest()
 
 
+# M7: `cloze`/`mcq` are graded without any LLM call (ARCHITECTURE.md §5) — both reduce to
+# "does the student's text match `reference_answer`", so one function serves both. For mcq,
+# `reference_answer` is the correct option's exact text (never its index — the client
+# submits the option text it displayed), so the same check applies unchanged.
+DETERMINISTIC_TYPES = {"cloze", "mcq"}
+
+
+def grade_exact_match(
+    *, rubric: list[dict], reference_answer: str, response_text: str
+) -> tuple[dict[str, bool], str]:
+    """Pure function, no ORM object, no LLM — same style as `grade_response`'s own
+    signature. `rubric` always has exactly one point for these types (CLAUDE.md invariant 1
+    still applies to it — see `generated_item.py`'s `_rubric_length_by_type`), so there's
+    exactly one `covered_by_point_id` entry to produce."""
+    point_id = rubric[0]["id"]
+    correct = normalize_response_text(response_text) == normalize_response_text(reference_answer)
+    feedback = "Correct." if correct else f"Not quite — the expected answer was: {reference_answer}"
+    return {point_id: correct}, feedback
+
+
 async def grade_response(
     *,
     item_prompt: str,

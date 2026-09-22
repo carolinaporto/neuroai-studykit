@@ -19,7 +19,10 @@ class StudySessionRequest(BaseModel):
 
 class StudyQueueItem(BaseModel):
     """Deliberately omits `rubric`, `reference_answer` and any source quote: the gabarito
-    must not reach the client before an answer is submitted."""
+    must not reach the client before an answer is submitted. `choices` is the one exception
+    to "nothing about the answer travels upfront" — for an `mcq` item it's safe to send: just
+    the option texts, `{"options": [...]}`, never which one is correct (that's
+    `reference_answer`, still withheld)."""
 
     id: uuid.UUID
     type: str
@@ -27,6 +30,7 @@ class StudyQueueItem(BaseModel):
     difficulty: int
     bloom: str
     topics: list[str]
+    choices: dict | None = None
 
 
 class StudyAnswerRequest(BaseModel):

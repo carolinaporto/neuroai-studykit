@@ -269,6 +269,7 @@ async def generate_for_week(
                         prompt=validated.prompt,
                         reference_answer=validated.reference_answer,
                         rubric=[p.model_dump() for p in validated.rubric],
+                        choices=validated.choices,
                         difficulty=validated.difficulty,
                         bloom=ItemBloom(validated.bloom),
                         topics=validated.topics,

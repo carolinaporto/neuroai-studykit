@@ -312,3 +312,169 @@ async def test_prompt_is_rendered_with_week_scoped_topics_only() -> None:
     assert "hebbian-plasticity" in rendered  # week 3 unit topic
     assert "single-unit-recording" in rendered  # cross_cutting topic
     assert "hubel-wiesel" not in rendered  # a week 5 topic must not leak in
+
+
+def _good_mcq_item(**overrides: object) -> dict:
+    item = {
+        "type": "mcq",
+        "prompt": "Which mechanism is described as cells that fire together wiring together?",
+        "reference_answer": "Hebbian plasticity",
+        "rubric": [GOOD_RUBRIC[0]],
+        "choices": {"options": ["Hebbian plasticity", "Long-term depression", "Apoptosis"]},
+        "difficulty": 2,
+        "bloom": "recall",
+        "topics": ["hebbian-plasticity"],
+        "proposed_topics": [],
+    }
+    item.update(overrides)
+    return item
+
+
+def _good_cloze_item(**overrides: object) -> dict:
+    item = {
+        "type": "cloze",
+        "prompt": "_____ is often summarized as cells that fire together wire together.",
+        "reference_answer": "Hebbian plasticity",
+        "rubric": [GOOD_RUBRIC[0]],
+        "difficulty": 1,
+        "bloom": "recall",
+        "topics": ["hebbian-plasticity"],
+        "proposed_topics": [],
+    }
+    item.update(overrides)
+    return item
+
+
+@pytest.mark.asyncio
+async def test_good_mcq_item_is_accepted_with_shuffled_choices() -> None:
+    llm = FakeLLM([json.dumps({"items": [_good_mcq_item()]})])
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.rejected == []
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert item.choices is not None
+    assert set(item.choices["options"]) == {
+        "Hebbian plasticity",
+        "Long-term depression",
+        "Apoptosis",
+    }
+    assert item.reference_answer in item.choices["options"]
+    assert len(item.rubric) == 1
+
+
+@pytest.mark.asyncio
+async def test_mcq_missing_choices_is_rejected() -> None:
+    raw = _good_mcq_item()
+    del raw["choices"]
+    llm = FakeLLM([json.dumps({"items": [raw]})])
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.items == []
+    assert len(result.rejected) == 1
+    assert "schema validation failed" in result.rejected[0].reason
+
+
+@pytest.mark.asyncio
+async def test_mcq_reference_answer_not_among_choices_is_rejected() -> None:
+    llm = FakeLLM(
+        [json.dumps({"items": [_good_mcq_item(reference_answer="Something else entirely")]})]
+    )
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.items == []
+    assert len(result.rejected) == 1
+    assert "reference_answer" in result.rejected[0].reason
+
+
+@pytest.mark.asyncio
+async def test_mcq_with_two_rubric_points_is_rejected() -> None:
+    llm = FakeLLM([json.dumps({"items": [_good_mcq_item(rubric=GOOD_RUBRIC)]})])
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.items == []
+    assert len(result.rejected) == 1
+    assert "exactly 1 rubric point" in result.rejected[0].reason
+
+
+@pytest.mark.asyncio
+async def test_good_cloze_item_is_accepted() -> None:
+    llm = FakeLLM([json.dumps({"items": [_good_cloze_item()]})])
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.rejected == []
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert item.choices is None
+    assert len(item.rubric) == 1
+    assert item.reference_answer == "Hebbian plasticity"
+
+
+@pytest.mark.asyncio
+async def test_cloze_prompt_with_no_blank_is_rejected() -> None:
+    llm = FakeLLM(
+        [
+            json.dumps(
+                {
+                    "items": [
+                        _good_cloze_item(
+                            prompt="Hebbian plasticity is cells that fire together wire together."
+                        )
+                    ]
+                }
+            )
+        ]
+    )
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.items == []
+    assert len(result.rejected) == 1
+    assert "exactly one" in result.rejected[0].reason
+
+
+@pytest.mark.asyncio
+async def test_cloze_prompt_with_two_blanks_is_rejected() -> None:
+    llm = FakeLLM(
+        [json.dumps({"items": [_good_cloze_item(prompt="_____ is _____ wire together.")]})]
+    )
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.items == []
+    assert len(result.rejected) == 1
+    assert "exactly one" in result.rejected[0].reason
+
+
+@pytest.mark.asyncio
+async def test_free_recall_still_rejects_choices_and_still_needs_two_to_five_points() -> None:
+    """Regression: M7's per-type rubric/choices rules must not loosen the original types."""
+    with_choices = _good_item(choices={"options": ["a", "b", "c"]})
+    one_point = _good_item(rubric=[GOOD_RUBRIC[0]])
+    llm = FakeLLM([json.dumps({"items": [with_choices, one_point]})])
+
+    result = await generate_items_for_chunk(
+        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+    )
+
+    assert result.items == []
+    assert len(result.rejected) == 2
