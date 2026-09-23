@@ -11,7 +11,8 @@ vez**, na ordem de @docs/IMPLEMENTATION_PLAN.md.
 
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Pydantic v2,
   pydantic-settings, Alembic, Postgres 16 + pgvector. Gerenciado com `uv`.
-- **Frontend:** React + Vite + TypeScript, TanStack Query, Tailwind.
+- **Frontend:** React + Vite + TypeScript, TanStack Query, `design/synapse` (CSS custom
+  properties, não Tailwind).
 - **Testes:** pytest (+ pytest-asyncio) no backend, vitest no frontend.
 - **Lint/format:** ruff (backend), prettier + eslint (frontend).
 
@@ -64,9 +65,10 @@ Se um comando ainda não existe no `Makefile`, crie-o no marco em que for necess
 7. **Endpoint de correção tem escopo fechado.** `/api/study/answer` recebe `item_id` e o
    texto do aluno, nunca um prompt. O texto do aluno entra na chamada como dado
    delimitado, jamais concatenado no papel de instrução.
-8. **Multiusuário está no schema desde o começo.** `owner_id`, `Deck.visibility` e
-   `User.role` existem e toda query de deck passa por um filtro que recebe o usuário
-   atual — mesmo havendo um usuário só. Não "simplifique" removendo isso.
+8. **Multiusuário está no schema desde o começo.** `owner_id` em toda tabela dona de
+   conteúdo (`Source`, `Homework`, `Note`), `Note.is_public` e `User.role` existem, e
+   toda query relevante passa por um filtro que recebe o usuário atual — mesmo havendo
+   um usuário só. Não "simplifique" removendo isso.
 
 ## Convenções
 
