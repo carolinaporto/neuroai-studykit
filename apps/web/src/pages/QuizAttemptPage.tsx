@@ -4,7 +4,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { reviewQuiz, submitStudyAnswer } from '../api/client'
 import type { QuizReviewItem, RubricHit, StudyAnswerResponse, StudyQueueItem } from '../api/types'
+import { useSession } from '../auth/useAuth'
 import { Button } from '../components/Button'
+import { LockedPlaceholder } from '../components/LockedPlaceholder'
 import { SourcePassage } from '../components/SourcePassage'
 import { useToast } from '../components/toastContext'
 import './QuizAttemptPage.css'
@@ -108,6 +110,8 @@ export function QuizAttemptPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { data: session } = useSession()
+  const signedIn = session?.signed_in ?? false
   const [responseText, setResponseText] = useState('')
   const [lastResult, setLastResult] = useState<StudyAnswerResponse | null>(null)
   const [lastAnsweredItemId, setLastAnsweredItemId] = useState<string | null>(null)
@@ -115,10 +119,14 @@ export function QuizAttemptPage() {
   const [readingItemId, setReadingItemId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // enabled requires signedIn too, not just attemptId — reached directly (a bookmark, a
+  // refresh mid-quiz), this fired before Layout's useSession() effect had wired up the
+  // Clerk token getter and 401'd even while genuinely signed in. See ReviewQueuePage.tsx's
+  // identical fix for the full explanation.
   const query = useQuery({
     queryKey: ['quiz-attempt', attemptId],
     queryFn: () => reviewQuiz(attemptId as string),
-    enabled: attemptId !== undefined,
+    enabled: attemptId !== undefined && signedIn,
   })
 
   const answerMutation = useMutation({
@@ -213,6 +221,7 @@ export function QuizAttemptPage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
+  if (!signedIn) return <LockedPlaceholder section="Quizzes" />
   if (query.isLoading) return <p className="body">Loading…</p>
   if (query.isError) return <p className="body">{(query.error as Error).message}</p>
   if (!query.data) return null

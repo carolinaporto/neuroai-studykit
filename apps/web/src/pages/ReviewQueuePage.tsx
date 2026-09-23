@@ -4,7 +4,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { listReviewQueue, patchItem } from '../api/client'
 import type { ItemPatchRequest, ReviewItemOut, RubricPoint } from '../api/types'
+import { useSession } from '../auth/useAuth'
 import { Button } from '../components/Button'
+import { LockedPlaceholder } from '../components/LockedPlaceholder'
 import { ReviewSourcePassage } from '../components/ReviewSourcePassage'
 import { useToast } from '../components/toastContext'
 import './ReviewQueuePage.css'
@@ -250,8 +252,21 @@ export function ReviewQueuePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { data: session } = useSession()
+  const signedIn = session?.signed_in ?? false
 
-  const query = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue })
+  // enabled: signedIn — not just belt-and-suspenders. Reached directly (a bookmark, a
+  // refresh, not always a client-side nav from ReviewPage), this query used to fire before
+  // Layout's useSession() effect had set the Clerk token getter (clerkTokenStore.ts):
+  // child effects run before a parent's on first mount, so the request went out with no
+  // Authorization header and 401'd even while genuinely signed in. Every other locked page
+  // already gates its query on its own useSession() call for the same reason — this one
+  // didn't.
+  const query = useQuery({
+    queryKey: ['review-queue'],
+    queryFn: listReviewQueue,
+    enabled: signedIn,
+  })
 
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState(false)
@@ -336,6 +351,7 @@ export function ReviewQueuePage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
+  if (!signedIn) return <LockedPlaceholder section="Review" />
   if (query.isLoading) return <p className="body">Loading…</p>
   if (query.isError) return <p className="body">{(query.error as Error).message}</p>
 
