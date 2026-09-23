@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 
 import {
+  CheckinIcon,
   CheckTargetIcon,
   HomeworkIcon,
   LockIcon,
@@ -36,6 +37,7 @@ const lockedItems = [
   { label: 'Review', path: '/review', Icon: ReviewIcon },
   { label: 'Quizzes', path: '/quizzes', Icon: CheckTargetIcon },
   { label: 'Progress', path: '/progress', Icon: ProgressIcon },
+  { label: 'Check-in', path: '/checkin', Icon: CheckinIcon },
   { label: 'Notes & Insights', path: '/notes', Icon: NotesIcon },
 ]
 

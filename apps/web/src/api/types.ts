@@ -268,3 +268,16 @@ export interface ProgressResponse {
   topics: TopicMastery[]
   due: DueCounts
 }
+
+// --- checkin (M11) ---
+
+export interface CheckinDraft {
+  week: number
+  title: string | null
+  items_total: number
+  items_attempted: number
+  avg_score: number | null
+  topics: TopicMastery[]
+  misconceptions: string[]
+  draft_markdown: string
+}

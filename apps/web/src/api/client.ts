@@ -1,4 +1,5 @@
 import type {
+  CheckinDraft,
   GenerateResponse,
   HomeworkOut,
   ItemOut,
@@ -181,4 +182,10 @@ export function getItemSource(itemId: string): Promise<ItemSourceResponse> {
 
 export function getProgress(): Promise<ProgressResponse> {
   return get('/api/progress')
+}
+
+// --- checkin (M11) ---
+
+export function getCheckinDraft(week: number): Promise<CheckinDraft> {
+  return get(`/api/checkin/draft?week=${week}`)
 }

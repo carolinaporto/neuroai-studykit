@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useSession } from '../auth/useAuth'
 import { AccessBadge } from '../components/AccessBadge'
 import {
+  CheckinIcon,
   CheckTargetIcon,
   HomeworkIcon,
   LockIcon,
@@ -53,6 +54,14 @@ const SECTIONS: Section[] = [
       "Mastery by topic and what's due for review — where you're strong, and where to study next.",
     path: '/progress',
     Icon: ProgressIcon,
+    isPublic: false,
+  },
+  {
+    label: 'Check-in',
+    description:
+      "A starting draft for the course's weekly check-in, built from your own real numbers — you write the reflection.",
+    path: '/checkin',
+    Icon: CheckinIcon,
     isPublic: false,
   },
   {
