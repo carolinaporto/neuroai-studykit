@@ -94,10 +94,24 @@ export function deleteSource(id: string): Promise<void> {
   return del(`/api/sources/${id}`)
 }
 
-// Not a fetch wrapper — used directly as an <iframe>/<a> src so the browser (not our JS)
-// streams the bytes. Cookies still ride along automatically for a same-context request.
-export function sourceFileUrl(id: string): string {
-  return `${API_BASE_URL}/api/sources/${id}/file`
+// Not the shared `request()` helper: this is binary, not JSON, so it returns the raw Blob
+// instead of parsing a body. Used directly as an <iframe>/<a> src is what this replaced —
+// that can't carry an Authorization header (only JS-initiated fetches can), so the caller
+// fetches the bytes here first and hands the browser a local object URL instead (see
+// SourcePreviewPanel.tsx) — same fix, same reason, as uploadSources() above.
+export async function fetchSourceFile(id: string): Promise<Blob> {
+  const token = await getAuthToken()
+  const headers: HeadersInit = {}
+  if (token) (headers as Record<string, string>).Authorization = `Bearer ${token}`
+
+  const res = await fetch(`${API_BASE_URL}/api/sources/${id}/file`, {
+    credentials: 'include',
+    headers,
+  })
+  if (!res.ok) {
+    throw new Error(`file fetch failed (${res.status}): ${await res.text()}`)
+  }
+  return res.blob()
 }
 
 export async function uploadSources(week: number, files: File[]): Promise<UploadSourcesResponse> {
@@ -107,10 +121,19 @@ export async function uploadSources(week: number, files: File[]): Promise<Upload
 
   // Not the shared `request()` helper: it always sets Content-Type: application/json,
   // which would break multipart/form-data — the browser must set that header itself, with
-  // the boundary it picked, or the server can't parse the body at all.
+  // the boundary it picked, or the server can't parse the body at all. It still needs the
+  // same Authorization header `request()` attaches, though — this was missing entirely
+  // (a real bug, not a Clerk config issue: every other call went through `request()` and
+  // carried the token; this one silently never did, so upload always 401'd once auth
+  // stopped being cookie-based in M12).
+  const token = await getAuthToken()
+  const headers: HeadersInit = {}
+  if (token) (headers as Record<string, string>).Authorization = `Bearer ${token}`
+
   const res = await fetch(`${API_BASE_URL}/api/sources/upload`, {
     method: 'POST',
     credentials: 'include',
+    headers,
     body: formData,
   })
   if (!res.ok) {

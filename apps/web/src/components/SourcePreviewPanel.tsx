@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
 
-import { deleteSource, getSource, sourceFileUrl } from '../api/client'
+import { deleteSource, fetchSourceFile, getSource } from '../api/client'
 import { formatLocator } from '../lib/locator'
 import { Button } from './Button'
 import { useToast } from './toastContext'
@@ -25,6 +26,28 @@ export function SourcePreviewPanel({
     queryKey: ['source', sourceId],
     queryFn: () => getSource(sourceId),
   })
+
+  // The file endpoint requires auth, so it can't be a plain <iframe>/<a> src (the browser's
+  // own request for those can't carry an Authorization header) — fetched here instead, with
+  // the token, then handed to the DOM as a local object URL.
+  const fileQuery = useQuery({
+    queryKey: ['source-file', sourceId],
+    queryFn: () => fetchSourceFile(sourceId),
+  })
+
+  // useMemo computes the URL during render (no setState-in-effect); the effect below only
+  // revokes it, never assigns anything — revoked whenever the blob changes (a new
+  // sourceId) or the panel unmounts, since an un-revoked object URL leaks the blob for the
+  // page's lifetime.
+  const fileUrl = useMemo(
+    () => (fileQuery.data ? URL.createObjectURL(fileQuery.data) : null),
+    [fileQuery.data],
+  )
+  useEffect(() => {
+    return () => {
+      if (fileUrl) URL.revokeObjectURL(fileUrl)
+    }
+  }, [fileUrl])
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteSource(sourceId),
@@ -67,25 +90,22 @@ export function SourcePreviewPanel({
       {query.data && (
         <>
           <div className="source-preview-actions">
-            <a
-              className="source-preview-download caption"
-              href={sourceFileUrl(sourceId)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open original file
-            </a>
+            {fileUrl && (
+              <a className="source-preview-download caption" href={fileUrl} download>
+                Open original file
+              </a>
+            )}
             <Button variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
               {deleteMutation.isPending ? 'Deleting…' : 'Delete source'}
             </Button>
           </div>
 
           {EMBEDDABLE_KINDS.has(query.data.kind) ? (
-            <iframe
-              className="source-preview-frame"
-              src={sourceFileUrl(sourceId)}
-              title={query.data.title}
-            />
+            fileUrl ? (
+              <iframe className="source-preview-frame" src={fileUrl} title={query.data.title} />
+            ) : (
+              <p className="body-sm">Loading preview…</p>
+            )
           ) : (
             <div className="source-preview-text">
               {query.data.chunks.map((chunk) => (
