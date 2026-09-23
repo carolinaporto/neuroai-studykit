@@ -34,58 +34,30 @@ flowchart LR
 
 ## Status
 
-M0 through M12 are done — parsing/chunking, question generation with literal-quote
-validation, the study runner and rubric grader, the review queue, embedding-based item
-dedup, CI, FSRS spaced repetition, the progress and weekly check-in pages, and real auth
-(Clerk, magic link). **M13 (deploy) is in progress** — the API (Render) and database
-(Neon, Postgres + pgvector) are live; the frontend (Vercel) is deployed and the last
-piece being verified is CORS between the two. No public live link yet — it'll land here
-once that's confirmed working end-to-end, not before.
+Functionally complete: source ingestion (PDF, slides, transcripts), question generation
+with literal-quote validation, the study runner and rubric grader, a review queue,
+embedding-based item dedup, spaced repetition (FSRS), a progress dashboard, weekly
+check-in drafts, and real auth (Clerk, magic link). CI runs the full test suite on
+every push.
 
-See [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) for the milestone
-roadmap and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design — data
-model, ingestion pipeline, grading flow, and the reasoning behind each decision.
+**Deploy is in progress** — the API and database are live; the last piece being
+verified is the connection between the API and the frontend. No public link yet — it'll
+land here once that's confirmed working end-to-end.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
 ## Design decisions & trade-offs
 
-A few choices worth calling out, in rough order of how much they shape the app:
-
-- **Literal citation, not semantic similarity.** Every rubric point's `support_quote`
-  must exist verbatim in its source chunk — checked in
-  [`packages/ingest/validators.py`](packages/ingest/validators.py), with exactly one
-  normalization (collapsing whitespace, nothing else: no case-folding, no unicode/quote
-  normalization). That one exception exists because PyMuPDF breaks lines mid-sentence
-  when it extracts PDF text and an LLM naturally normalizes that break when quoting —
-  without it, every item generated from a real PDF was rejected on an extraction
-  artifact, not on an actual hallucination (8/8 items in one real chunk, before the
-  fix). "Almost matches" was deliberately never allowed to become the threshold.
+- **Literal citation, not semantic similarity.** A question's supporting quote must
+  exist verbatim in the source text — no paraphrase, no "close enough."
 - **The score is computed in Python, never asked of the LLM.** The model only judges
-  `covered: true | false` per rubric point; `Σ weight(covered) / Σ weight` is arithmetic,
-  not a model's opinion of a grade.
-- **A closed-scope grading endpoint.** `/api/study/answer` takes an `item_id` and the
-  student's raw text — never a prompt. The student's text is always passed as delimited
-  data, never concatenated into an instruction role, so it can't redirect what the model
-  is asked to do.
-- **Multi-user schema since v1**, even with a single real user. `owner_id`,
-  `Deck.visibility`, and `User.role` (owner/student/demo) exist from the first migration
-  — adding a second real user is a config-file line (`ALLOWED_EMAILS`), not a schema
-  migration.
-- **Item dedup by embedding, not exact match** ([`packages/ingest/dedup.py`](packages/ingest/dedup.py)):
-  a new item's prompt embedding is compared by cosine similarity (pgvector,
-  threshold 0.92) against existing items in the same week, catching paraphrased
-  duplicates a string comparison would miss.
-- **FSRS, not a naive spaced-repetition curve** — `apps/api/services/scheduling.py`
-  maps each graded attempt to an FSRS grade and lets the algorithm own the review
-  schedule, rather than hand-rolling interval math.
-- **Two real, recent infra trade-offs, made deliberately, not by accident:** the
-  database runs on Neon rather than Render/Railway's own Postgres, because Render's
-  free Postgres tier expires after 30 days and Neon's doesn't; and the auth provider
-  (Clerk) runs its **Development** instance in production rather than paying for a
-  custom domain just to unlock a Production instance — a fine trade for a single-owner
-  personal app, revisited the moment that stops being true.
+  whether each rubric point is covered; the grade itself is arithmetic.
+- **A closed-scope grading endpoint.** A student's answer is passed as data, never
+  concatenated into a prompt — it can't redirect what the model is asked to do.
+- **Multi-user schema from day one**, even with a single real user — adding someone
+  else is a config change, not a migration.
 
-More of these — and the ones that didn't make this list — are in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#11-riscos-e-como-cada-um-é-mitigado).
+More in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#11-riscos-e-como-cada-um-é-mitigado).
 
 ## Stack
 
@@ -142,8 +114,7 @@ tests/          pytest suite; runs against a synthetic corpus, never real course
 ```
 
 `content/` (lecture material) is gitignored on purpose — it isn't mine to redistribute.
-Tests and the demo GIF above run on a synthetic corpus written from scratch, committed
-under `tests/fixtures/`.
+Tests run on a synthetic corpus written from scratch, committed under `tests/fixtures/`.
 
 ## Why this exists
 
