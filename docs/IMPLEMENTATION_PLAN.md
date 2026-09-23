@@ -285,7 +285,7 @@ agora é adivinhação, porque o que você aprender na Fase 1 muda o resto.
 
 **Fase 4 — fechar a porta**
 - **M12** Auth OIDC com magic link + `ALLOWED_EMAILS` + teto diário de tokens.
-- **M13** Deploy (Railway/Render + Vercel + R2), `.env` de produção, backup do Postgres.
+- **M13** Deploy (Neon + Render + Vercel), `.env` de produção, backup do Postgres.
 
 **Fase 5 — portfólio**
 - **M14** README com GIF do loop, diagrama, seção de decisões de design e trade-offs,

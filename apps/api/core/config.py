@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # `allowed_email_set` property below, never this one directly.
     allowed_emails: str = ""
     env: str = "development"
+    # M13: the deployed frontend's origin (e.g. https://neuroai-studykit.vercel.app), added
+    # to CORS alongside the localhost regex below — empty in dev, where the regex alone
+    # already covers Vite's ports.
+    web_origin: str = ""
 
     @property
     def allowed_email_set(self) -> set[str]:

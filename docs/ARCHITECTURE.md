@@ -305,11 +305,19 @@ Isso não é só conformidade: um recrutador que abre o repo e vê `content/` va
 
 ## 9. Deploy
 
-- **API + worker + Postgres(pgvector):** Railway ou Render (dois serviços apontando para
-  a mesma imagem, comandos diferentes: `uvicorn` e `python -m apps.api.worker`).
-- **Web:** Vercel ou Cloudflare Pages.
-- **Arquivos:** Cloudflare R2 (S3-compatível, egress grátis).
-- `docker-compose.yml` reproduz tudo local para o desenvolvimento com Claude Code.
+Implantado no M13 — o que segue é o que de fato está no ar, não o desenho original desta
+seção (que previa um worker separado e storage em R2; nenhum dos dois chegou a existir).
+
+- **Postgres (pgvector):** Neon. Free tier, sem prazo de expiração, pgvector incluso sem
+  custo extra (confirmado em `neon.com/docs` — diferente do Postgres free do Render/Railway,
+  que expira). O compute dorme após inatividade e acorda sozinho na próxima conexão.
+- **API:** Render, ambiente nativo Python (sem Dockerfile), tier grátis de web service.
+  Um serviço só — não existe worker; toda geração/correção roda inline na requisição.
+- **Web:** Vercel, tier grátis, autodetecta Vite.
+- **Arquivos:** ficam em bytea no Postgres (não em R2/S3) — decisão de antes deste marco,
+  simples o bastante pro volume de um app pessoal.
+- `docker-compose.yml` reproduz o banco local para desenvolvimento (`make up`); API e web
+  rodam direto via `make api`/`make web`, sem container, tanto local quanto em produção.
 
 ---
 
