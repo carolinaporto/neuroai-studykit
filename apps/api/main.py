@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.core.db import check_db_connection
-from apps.api.routers import auth, homework, items, notes, sources, study
+from apps.api.routers import auth, homework, items, notes, progress, sources, study
 
 app = FastAPI(title="NeuroAI Study Kit API")
 
@@ -24,6 +24,7 @@ app.include_router(items.router)
 app.include_router(sources.router)
 app.include_router(homework.router)
 app.include_router(notes.router)
+app.include_router(progress.router)
 
 
 @app.get("/health")

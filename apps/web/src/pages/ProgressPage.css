@@ -1,0 +1,104 @@
+/* Stat tiles — a handful of headline numbers, per the dataviz skill's "is it even a chart?"
+   guidance: this is a KPI row, not a bar chart with a bar per number. */
+.progress-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 var(--space-6);
+}
+
+.progress-tile {
+  min-width: 140px;
+  background: var(--surface-100);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.progress-tile-value {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 28px;
+  /* Proportional figures, not tabular-nums — this is a standalone display value, not a
+     column of numbers that need to align. */
+  color: var(--ink);
+  margin: 0;
+}
+
+.progress-tile-value-danger {
+  color: var(--danger);
+}
+
+.progress-tile-label {
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.progress-section-title {
+  margin-top: 0;
+}
+
+.progress-topic-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 640px;
+}
+
+.progress-topic-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.progress-topic-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.progress-topic-label {
+  color: var(--ink);
+}
+
+.progress-topic-meta {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* A meter, not a chart: one ratio against a limit (0-100%), track = a lighter step of the
+   same neutral ramp the rest of the page sits on. */
+.progress-meter-track {
+  height: 10px;
+  background: var(--surface-200);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.progress-meter-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+
+/* Same three-way severity split as ProgressPage.tsx's scoreBand — success/neutral/danger
+   are this app's own existing status pair (already used for rubric hits), not a new
+   palette invented for this one page. */
+.progress-meter-good {
+  background: var(--success);
+}
+
+.progress-meter-hard {
+  background: var(--accent-neuro);
+}
+
+.progress-meter-again {
+  background: var(--danger);
+}

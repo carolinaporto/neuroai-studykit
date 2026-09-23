@@ -54,6 +54,16 @@ export function CheckTargetIcon(props: IconProps) {
   )
 }
 
+export function ProgressIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 19V11" />
+      <path d="M12 19V5" />
+      <path d="M19 19v-6" />
+    </Icon>
+  )
+}
+
 export function ReviewIcon(props: IconProps) {
   return (
     <Icon {...props}>

@@ -6,6 +6,7 @@ import type {
   ItemSourceResponse,
   NoteCreateRequest,
   NoteOut,
+  ProgressResponse,
   QuizReviewResponse,
   SessionStatus,
   SourceDetail,
@@ -174,4 +175,10 @@ export function reviewQuiz(quizAttemptId: string): Promise<QuizReviewResponse> {
 // different from a reveal-the-answer button.
 export function getItemSource(itemId: string): Promise<ItemSourceResponse> {
   return get(`/api/study/items/${itemId}/source`)
+}
+
+// --- progress (M10) ---
+
+export function getProgress(): Promise<ProgressResponse> {
+  return get('/api/progress')
 }

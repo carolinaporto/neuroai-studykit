@@ -8,6 +8,7 @@ import {
   HomeworkIcon,
   LockIcon,
   NotesIcon,
+  ProgressIcon,
   ReviewIcon,
   SourcesIcon,
 } from '../components/icons'
@@ -44,6 +45,14 @@ const SECTIONS: Section[] = [
       'Weekly recall checks generated from your own material, graded against a rubric, not vibes.',
     path: '/quizzes',
     Icon: CheckTargetIcon,
+    isPublic: false,
+  },
+  {
+    label: 'Progress',
+    description:
+      "Mastery by topic and what's due for review — where you're strong, and where to study next.",
+    path: '/progress',
+    Icon: ProgressIcon,
     isPublic: false,
   },
   {

@@ -245,3 +245,26 @@ export interface ItemPatchRequest {
   topics?: string[]
   choices?: Record<string, unknown> | null
 }
+
+// --- progress (M10) ---
+
+export interface TopicMastery {
+  slug: string
+  label: string | null
+  item_count: number
+  attempted_count: number
+  // null: items exist for this topic but none have been answered yet — not the same as weak.
+  avg_score: number | null
+}
+
+export interface DueCounts {
+  never_reviewed: number
+  overdue: number
+  due_today: number
+  upcoming: number
+}
+
+export interface ProgressResponse {
+  topics: TopicMastery[]
+  due: DueCounts
+}

@@ -6,6 +6,7 @@ import {
   LockIcon,
   NotesIcon,
   OverviewIcon,
+  ProgressIcon,
   ReviewIcon,
   SourcesIcon,
 } from './icons'
@@ -34,6 +35,7 @@ const lockedItems = [
   { label: 'Sources', path: '/sources', Icon: SourcesIcon },
   { label: 'Review', path: '/review', Icon: ReviewIcon },
   { label: 'Quizzes', path: '/quizzes', Icon: CheckTargetIcon },
+  { label: 'Progress', path: '/progress', Icon: ProgressIcon },
   { label: 'Notes & Insights', path: '/notes', Icon: NotesIcon },
 ]
 
