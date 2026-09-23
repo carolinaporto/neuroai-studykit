@@ -15,6 +15,9 @@ class StudySessionRequest(BaseModel):
     week: int | None = None
     topics: list[str] | None = None
     limit: int = Field(default=10, ge=1, le=50)
+    # M9: an item is due if it's never been reviewed or its ReviewState.due_at has passed —
+    # see apps/api/services/scheduling.py.
+    due_only: bool = False
 
 
 class StudyQueueItem(BaseModel):

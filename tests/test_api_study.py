@@ -15,6 +15,7 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -36,6 +37,7 @@ from packages.db.models import (
     ItemStatus,
     ItemType,
     QuizAttempt,
+    ReviewState,
     Source,
     SourceKind,
     SourceStatus,
@@ -912,3 +914,116 @@ async def test_quiz_queue_includes_choices_only_for_mcq_items() -> None:
     finally:
         await _cleanup(session_factory, mcq_source)
         await _cleanup(session_factory, free_source)
+
+
+@pytest.mark.asyncio
+async def test_answering_leaves_a_review_state_row_behind() -> None:
+    """M9: both grading paths (LLM and M7's deterministic one) must feed the scheduler."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    llm_item_id, llm_source = await _make_item(session_factory)
+    mcq_item_id, mcq_source = await _make_item(
+        session_factory,
+        item_type=ItemType.mcq,
+        reference_answer="Hebbian plasticity",
+        rubric=_SINGLE_POINT_RUBRIC,
+        choices={"options": ["Hebbian plasticity", "Long-term depression", "Apoptosis"]},
+    )
+    graded_json = json.dumps(
+        {
+            "points": [
+                {"point_id": "p1", "covered": True, "evidence": "..."},
+                {"point_id": "p2", "covered": True, "evidence": "..."},
+            ],
+            "misconceptions": [],
+            "feedback_md": "Great answer.",
+        }
+    )
+    fake_llm = FakeLLM([graded_json])
+
+    try:
+        async with _test_client(session_factory, fake_llm) as client:
+            llm_resp = await client.post(
+                "/api/study/answer",
+                json={"item_id": str(llm_item_id), "response_text": "a full answer"},
+            )
+            assert llm_resp.status_code == 200
+
+            mcq_resp = await client.post(
+                "/api/study/answer",
+                json={"item_id": str(mcq_item_id), "response_text": "Hebbian plasticity"},
+            )
+            assert mcq_resp.status_code == 200
+
+        async with session_factory() as session:
+            for item_id in (llm_item_id, mcq_item_id):
+                state = await session.scalar(
+                    select(ReviewState).where(
+                        ReviewState.user_id == owner_id, ReviewState.item_id == item_id
+                    )
+                )
+                assert state is not None
+                assert state.reps == 1
+                assert state.last_grade == "good"
+                assert state.due_at is not None
+    finally:
+        await _cleanup(session_factory, llm_source)
+        await _cleanup(session_factory, mcq_source)
+
+
+@pytest.mark.asyncio
+async def test_session_due_only_excludes_a_not_yet_due_item() -> None:
+    session_factory = make_session_factory(DbSettings().database_url)
+    owner_id = DbSettings().dev_owner_id
+    not_due_id, not_due_source = await _make_item(session_factory, prompt="not due yet")
+    never_reviewed_id, never_reviewed_source = await _make_item(
+        session_factory, prompt="never reviewed"
+    )
+    overdue_id, overdue_source = await _make_item(session_factory, prompt="overdue")
+
+    async with session_factory() as session:
+        now = datetime.now(UTC)
+        session.add_all(
+            [
+                ReviewState(
+                    user_id=owner_id,
+                    item_id=not_due_id,
+                    stability=5.0,
+                    difficulty=5.0,
+                    due_at=now + timedelta(days=10),
+                    reps=1,
+                    lapses=0,
+                    last_grade="good",
+                    last_reviewed_at=now,
+                    fsrs_card={},
+                ),
+                ReviewState(
+                    user_id=owner_id,
+                    item_id=overdue_id,
+                    stability=5.0,
+                    difficulty=5.0,
+                    due_at=now - timedelta(days=1),
+                    reps=1,
+                    lapses=0,
+                    last_grade="hard",
+                    last_reviewed_at=now - timedelta(days=5),
+                    fsrs_card={},
+                ),
+            ]
+        )
+        await session.commit()
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.post(
+                "/api/study/session", json={"week": 999, "limit": 50, "due_only": True}
+            )
+            assert resp.status_code == 200
+            ids = {row["id"] for row in resp.json()}
+            assert str(not_due_id) not in ids
+            assert str(never_reviewed_id) in ids
+            assert str(overdue_id) in ids
+    finally:
+        await _cleanup(session_factory, not_due_source)
+        await _cleanup(session_factory, never_reviewed_source)
+        await _cleanup(session_factory, overdue_source)

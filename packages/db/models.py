@@ -252,6 +252,35 @@ class Attempt(UUIDPkMixin, CreatedAtMixin, Base):
     tokens_used: Mapped[int] = mapped_column(Integer)
 
 
+class ReviewState(UUIDPkMixin, CreatedAtMixin, Base):
+    """M9: one row per (user, item), driving the FSRS due-based queue
+    (`apps/api/services/scheduling.py`). `stability`/`difficulty`/`due_at`/`reps`/`lapses`/
+    `last_grade` are ARCHITECTURE.md's own named columns, real (queryable, indexable)
+    columns rather than JSONB — `due_at` in particular has to be a plain indexed timestamp
+    for the due-queue filter to be an ordinary WHERE/index scan. `fsrs_card` is the
+    `fsrs.Card.to_dict()` blob: the source of truth for resuming the schedule exactly next
+    time (it also carries the library's own `state`/`step`/`card_id`, which nothing else
+    here needs to query on); the named columns above are kept in sync with it on every write
+    purely for querying convenience, same pattern `Item.rubric`'s jsonb already uses
+    alongside plain columns elsewhere in this file."""
+
+    __tablename__ = "review_state"
+    __table_args__ = (UniqueConstraint("user_id", "item_id", name="uq_review_state_user_item"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"), index=True)
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("item.id", ondelete="CASCADE"), index=True
+    )
+    stability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    reps: Mapped[int] = mapped_column(Integer, default=0)
+    lapses: Mapped[int] = mapped_column(Integer, default=0)
+    last_grade: Mapped[str] = mapped_column(String)
+    last_reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fsrs_card: Mapped[dict] = mapped_column(JSONB)
+
+
 class Homework(UUIDPkMixin, CreatedAtMixin, Base):
     """A portfolio entry in the public Homework section — design/synapse's `HomeworkCard`.
     Deliberately thin: each homework is its own separate project (a write-up, a new page, an

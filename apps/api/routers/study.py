@@ -60,6 +60,7 @@ from apps.api.services.grading import (
     grade_response,
     response_hash_for,
 )
+from apps.api.services.scheduling import apply_review
 from packages.core.llm import LLMClient
 from packages.db.models import (
     Attempt,
@@ -68,6 +69,7 @@ from packages.db.models import (
     ItemStatus,
     QuizAttempt,
     QuizAttemptStatus,
+    ReviewState,
     Source,
 )
 
@@ -90,12 +92,20 @@ def _queue_item(item: Item) -> StudyQueueItem:
 async def start_session(
     body: StudySessionRequest,
     session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> list[StudyQueueItem]:
     stmt = select(Item).where(Item.status.in_(STUDYABLE_STATUSES))
     if body.week is not None:
         stmt = stmt.join(Source, Source.id == Item.source_id).where(Source.week == body.week)
     if body.topics:
         stmt = stmt.where(Item.topics.op("&&")(body.topics))
+    if body.due_only:
+        # Due by definition if never reviewed (no ReviewState row) or overdue — never one
+        # that's scheduled into the future.
+        not_yet_due = select(ReviewState.item_id).where(
+            ReviewState.user_id == user_id, ReviewState.due_at > datetime.now(UTC)
+        )
+        stmt = stmt.where(Item.id.not_in(not_yet_due))
     stmt = stmt.order_by(Item.created_at).limit(body.limit)
 
     items = (await session.scalars(stmt)).all()
@@ -357,6 +367,13 @@ async def answer(
     )
 
     if cached is not None and quiz_attempt is None:
+        # M9: still a real review — the student just attempted this item right now, cache
+        # only spared the LLM call. apply_review's own same-day dedup (not this branch) is
+        # what stops a same-sitting resubmission from over-counting.
+        await apply_review(
+            session, user_id=user_id, item_id=item.id, score=cached.score, now=datetime.now(UTC)
+        )
+        await session.commit()
         return _attempt_to_response(cached, item, chunks, cached=True)
 
     if cached is not None:
@@ -378,6 +395,9 @@ async def answer(
             tokens_used=0,
         )
         session.add(attempt)
+        await apply_review(
+            session, user_id=user_id, item_id=item.id, score=cached.score, now=datetime.now(UTC)
+        )
         await _maybe_complete_quiz(session, quiz_attempt)
         await session.commit()
         return _attempt_to_response(attempt, item, chunks, cached=True)
@@ -411,6 +431,9 @@ async def answer(
             tokens_used=0,
         )
         session.add(attempt)
+        await apply_review(
+            session, user_id=user_id, item_id=item.id, score=score, now=datetime.now(UTC)
+        )
         if quiz_attempt is not None:
             await _maybe_complete_quiz(session, quiz_attempt)
         await session.commit()
@@ -457,6 +480,9 @@ async def answer(
         tokens_used=estimated_tokens,
     )
     session.add(attempt)
+    await apply_review(
+        session, user_id=user_id, item_id=item.id, score=score, now=datetime.now(UTC)
+    )
     if quiz_attempt is not None:
         await _maybe_complete_quiz(session, quiz_attempt)
     await session.commit()
