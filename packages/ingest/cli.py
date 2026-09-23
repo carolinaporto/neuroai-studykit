@@ -18,6 +18,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from packages.core.embeddings import EmbeddingClient, EmbeddingSettings, OpenAIEmbeddingClient
 from packages.core.llm import AnthropicLLMClient, LLMClient, LLMSettings
 from packages.db.models import (
     Chunk as ChunkRow,
@@ -37,6 +38,7 @@ from packages.db.models import (
 from packages.db.session import DbSettings, make_session_factory
 
 from .chunker import chunk_blocks
+from .dedup import find_duplicate_item
 from .generator import GenerationFailedError, generate_items_for_chunk, prompt_version_hash
 from .models import Chunk, Locator, ParsedBlock
 from .parsers.pdf import parse_pdf
@@ -195,6 +197,7 @@ async def generate_for_week(
     week: int,
     session_factory: async_sessionmaker[AsyncSession],
     llm: LLMClient,
+    embedding_client: EmbeddingClient,
     *,
     force: bool = False,
 ) -> dict[str, object]:
@@ -207,10 +210,22 @@ async def generate_for_week(
     is tagged with the current `gen_prompt_version` (see `generator.prompt_version_hash`),
     so old and new items sit side by side and you can compare them by that field until you
     triage them in the M6 review UI.
+
+    M7 part 2: every item that passes quote/rubric validation is still checked against every
+    existing item in the week by prompt-embedding cosine similarity
+    (`packages/ingest/dedup.py`) before it's persisted — a near-duplicate from an
+    overlapping chunk is counted in `items_deduped`, never saved. `embedding_client` has no
+    default (same as `llm`): a forgotten wire-up should fail loudly, not silently skip dedup.
     """
     vocabulary = load_topics()
     prompt_version = prompt_version_hash()
-    counts = {"chunks_processed": 0, "items_saved": 0, "items_rejected": 0, "chunks_failed": 0}
+    counts = {
+        "chunks_processed": 0,
+        "items_saved": 0,
+        "items_rejected": 0,
+        "items_deduped": 0,
+        "chunks_failed": 0,
+    }
     proposed_topics: list[str] = []
 
     async with session_factory() as session:
@@ -260,23 +275,41 @@ async def generate_for_week(
                 counts["chunks_failed"] += 1
                 continue
 
-            for validated in result.items:
-                session.add(
-                    Item(
-                        source_id=chunk.source_id,
-                        chunk_ids=[chunk.id],
-                        type=ItemType(validated.type),
-                        prompt=validated.prompt,
-                        reference_answer=validated.reference_answer,
-                        rubric=[p.model_dump() for p in validated.rubric],
-                        choices=validated.choices,
-                        difficulty=validated.difficulty,
-                        bloom=ItemBloom(validated.bloom),
-                        topics=validated.topics,
-                        gen_model=llm.model_name,
-                        gen_prompt_version=prompt_version,
+            chunk_items_saved = 0
+            chunk_items_deduped = 0
+            if result.items:
+                embeddings = await embedding_client.embed([v.prompt for v in result.items])
+                for validated, embedding in zip(result.items, embeddings, strict=True):
+                    duplicate_of = await find_duplicate_item(
+                        session, week=week, embedding=embedding
                     )
-                )
+                    if duplicate_of is not None:
+                        chunk_items_deduped += 1
+                        continue
+
+                    session.add(
+                        Item(
+                            source_id=chunk.source_id,
+                            chunk_ids=[chunk.id],
+                            type=ItemType(validated.type),
+                            prompt=validated.prompt,
+                            reference_answer=validated.reference_answer,
+                            rubric=[p.model_dump() for p in validated.rubric],
+                            choices=validated.choices,
+                            difficulty=validated.difficulty,
+                            bloom=ItemBloom(validated.bloom),
+                            topics=validated.topics,
+                            gen_model=llm.model_name,
+                            gen_prompt_version=prompt_version,
+                            embedding=embedding,
+                        )
+                    )
+                    # Not just the chunk's final commit below: a later item in this same
+                    # chunk (or a later chunk, same run) must already see this one as a
+                    # dedup candidate, which requires it to be visible to a SELECT now.
+                    await session.flush()
+                    chunk_items_saved += 1
+
             for topic in result.proposed_topics:
                 if topic not in proposed_topics:
                     proposed_topics.append(topic)
@@ -284,14 +317,16 @@ async def generate_for_week(
             job.status = IngestJobStatus.done
             job.payload = {
                 "chunk_id": str(chunk.id),
-                "items_saved": len(result.items),
+                "items_saved": chunk_items_saved,
                 "items_rejected": len(result.rejected),
+                "items_deduped": chunk_items_deduped,
                 "rejected_reasons": [r.reason for r in result.rejected],
                 "attempts": result.attempts,
             }
             await session.commit()
-            counts["items_saved"] += len(result.items)
+            counts["items_saved"] += chunk_items_saved
             counts["items_rejected"] += len(result.rejected)
+            counts["items_deduped"] += chunk_items_deduped
 
     return {**counts, "proposed_topics": proposed_topics}
 
@@ -299,15 +334,23 @@ async def generate_for_week(
 def _run_generate(week: int, force: bool) -> int:
     db_settings = DbSettings()
     llm_settings = LLMSettings()
+    embedding_settings = EmbeddingSettings()
     session_factory = make_session_factory(db_settings.database_url)
     llm = AnthropicLLMClient(
         api_key=llm_settings.anthropic_api_key, model=llm_settings.llm_model_generate
     )
+    embedding_client = OpenAIEmbeddingClient(
+        api_key=embedding_settings.openai_api_key,
+        model=embedding_settings.openai_embedding_model,
+    )
 
-    result = asyncio.run(generate_for_week(week, session_factory, llm, force=force))
+    result = asyncio.run(
+        generate_for_week(week, session_factory, llm, embedding_client, force=force)
+    )
     print(
         f"{result['chunks_processed']} chunks processados, {result['items_saved']} itens salvos, "
-        f"{result['items_rejected']} itens rejeitados, {result['chunks_failed']} chunks falharam"
+        f"{result['items_rejected']} itens rejeitados, {result['items_deduped']} itens "
+        f"deduplicados, {result['chunks_failed']} chunks falharam"
     )
     proposed = result["proposed_topics"]
     if proposed:

@@ -8,6 +8,7 @@ import enum
 import uuid
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector as PgVectorType
 from sqlalchemy import (
     ARRAY,
     Boolean,
@@ -189,6 +190,14 @@ class Item(UUIDPkMixin, CreatedAtMixin, Base):
     )
     gen_model: Mapped[str] = mapped_column(String)
     gen_prompt_version: Mapped[str] = mapped_column(String)
+    # M7 part 2: the prompt's embedding, for item dedup (packages/ingest/dedup.py) — NULL
+    # for any item generated before this shipped; it simply never participates in a dedup
+    # comparison (neither side) until regenerated. Unlike Chunk.embedding (still the
+    # DDL-only stand-in in packages/db/base.py — a separate, later feature), this column
+    # uses the real pgvector type because this is the milestone that actually reads and
+    # writes it. 1536 dims to match Chunk.embedding's own column, in case that one is ever
+    # populated with the same model later.
+    embedding: Mapped[list[float] | None] = mapped_column(PgVectorType(1536), nullable=True)
 
 
 class QuizAttemptStatus(enum.StrEnum):

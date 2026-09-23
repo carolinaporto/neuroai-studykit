@@ -16,7 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from apps.api.core.db import get_session, get_session_factory
-from apps.api.core.deps import get_current_user_id, get_llm_client, require_owner
+from apps.api.core.deps import (
+    get_current_user_id,
+    get_embedding_client,
+    get_llm_client,
+    require_owner,
+)
 from apps.api.schemas.sources import (
     ChunkOut,
     GenerateRequest,
@@ -27,6 +32,7 @@ from apps.api.schemas.sources import (
     UploadSourcesResponse,
     WeekSources,
 )
+from packages.core.embeddings import EmbeddingClient
 from packages.core.llm import LLMClient
 from packages.db.models import Chunk as ChunkRow
 from packages.db.models import IngestJob, IngestJobKind, IngestJobStatus, Source, SourceStatus, User
@@ -284,14 +290,18 @@ async def upload_sources(
 async def generate_questions(
     body: GenerateRequest,
     llm: LLMClient = Depends(get_llm_client),
+    embedding_client: EmbeddingClient = Depends(get_embedding_client),
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
 ) -> GenerateResponse:
-    """The paid step: one real LLM call per not-yet-covered chunk in the week. Reuses
+    """The paid step: one real LLM call per not-yet-covered chunk in the week, plus one
+    embedding call per chunk's accepted items for M7 part 2's dedup. Reuses
     `packages/ingest/cli.py`'s `generate_for_week` verbatim — same function the CLI's
     `ingest generate` runs — via a whole session factory rather than the request's own
     `AsyncSession`, since that function manages several of its own transactions across a
     week's chunks. A chunk whose generation call fails is counted in `chunks_failed`, not
     raised — the same behavior the CLI has always had, so one bad chunk doesn't lose the
     rest of the week's results."""
-    result = await generate_for_week(body.week, session_factory, llm, force=body.force)
+    result = await generate_for_week(
+        body.week, session_factory, llm, embedding_client, force=body.force
+    )
     return GenerateResponse(**result)

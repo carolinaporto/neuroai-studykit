@@ -101,6 +101,7 @@ export interface GenerateResponse {
   chunks_processed: number
   items_saved: number
   items_rejected: number
+  items_deduped: number
   chunks_failed: number
   proposed_topics: string[]
 }

@@ -16,8 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from apps.api.core.db import get_session, get_session_factory
-from apps.api.core.deps import get_llm_client, require_owner
+from apps.api.core.deps import get_embedding_client, get_llm_client, require_owner
 from apps.api.main import app
+from packages.core.embeddings import EmbeddingClient, FakeEmbeddingClient
 from packages.core.llm import FakeLLM, LLMClient
 from packages.db.models import (
     Chunk,
@@ -37,7 +38,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @asynccontextmanager
 async def _test_client(
-    session_factory: async_sessionmaker, llm: LLMClient | None = None
+    session_factory: async_sessionmaker,
+    llm: LLMClient | None = None,
+    embeddings: EmbeddingClient | None = None,
 ) -> AsyncIterator[httpx.AsyncClient]:
     async def override_get_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -53,8 +56,12 @@ async def _test_client(
     # Always overridden: upload can call the LLM now (scanned PDF pages), and no test may
     # reach the real API (invariant 5) — a test that forgets to pass one gets an empty fake
     # that raises if it is ever called.
-    fake = llm if llm is not None else FakeLLM([])
-    app.dependency_overrides[get_llm_client] = lambda: fake
+    fake_llm = llm if llm is not None else FakeLLM([])
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm
+    # Same reasoning, extended to M7 part 2's embedding provider: generate now embeds every
+    # accepted item for dedup, so this must always be overridden too.
+    fake_embeddings = embeddings if embeddings is not None else FakeEmbeddingClient([])
+    app.dependency_overrides[get_embedding_client] = lambda: fake_embeddings
     try:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -64,6 +71,7 @@ async def _test_client(
         app.dependency_overrides.pop(get_session_factory, None)
         app.dependency_overrides.pop(require_owner, None)
         app.dependency_overrides.pop(get_llm_client, None)
+        app.dependency_overrides.pop(get_embedding_client, None)
 
 
 async def _ensure_owner(session: AsyncSession, owner_id: uuid.UUID) -> None:
@@ -333,14 +341,18 @@ async def test_generate_uses_fake_llm_and_saves_items() -> None:
         source_id = source.id
 
     fake_llm = FakeLLM([_generated_batch_json()])
+    # One item in that batch -> one embed() call for one vector. Nothing else in this
+    # isolated source has an embedding, so it can't dedup against anything.
+    fake_embeddings = FakeEmbeddingClient([[[1.0] + [0.0] * 1535]])
 
     try:
-        async with _test_client(session_factory, fake_llm) as client:
+        async with _test_client(session_factory, fake_llm, fake_embeddings) as client:
             resp = await client.post("/api/sources/generate", json={"week": week})
             assert resp.status_code == 200
             body = resp.json()
             assert body["chunks_processed"] == 1
             assert body["items_saved"] == 1
+            assert body["items_deduped"] == 0
             assert body["chunks_failed"] == 0
 
         async with session_factory() as session:

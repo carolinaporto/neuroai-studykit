@@ -13,12 +13,14 @@ import uuid
 
 from fastapi import HTTPException, Request
 
+from packages.core.embeddings import EmbeddingClient, EmbeddingSettings, OpenAIEmbeddingClient
 from packages.core.llm import AnthropicLLMClient, LLMClient, LLMSettings
 
 from .auth import SESSION_COOKIE_NAME, verify_session_token
 from .config import settings
 
 _llm_settings = LLMSettings()
+_embedding_settings = EmbeddingSettings()
 
 
 def get_current_user_id() -> uuid.UUID:
@@ -38,4 +40,11 @@ def require_owner(request: Request) -> None:
 def get_llm_client() -> LLMClient:
     return AnthropicLLMClient(
         api_key=_llm_settings.anthropic_api_key, model=_llm_settings.llm_model_grade
+    )
+
+
+def get_embedding_client() -> EmbeddingClient:
+    return OpenAIEmbeddingClient(
+        api_key=_embedding_settings.openai_api_key,
+        model=_embedding_settings.openai_embedding_model,
     )

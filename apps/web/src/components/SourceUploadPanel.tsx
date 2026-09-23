@@ -175,7 +175,8 @@ export function SourceUploadPanel() {
         {generateResult && (
           <p className="caption">
             {generateResult.chunks_processed} chunks processed · {generateResult.items_saved} items
-            saved · {generateResult.items_rejected} rejected · {generateResult.chunks_failed} failed
+            saved · {generateResult.items_rejected} rejected · {generateResult.items_deduped}{' '}
+            deduped · {generateResult.chunks_failed} failed
             {generateResult.proposed_topics.length > 0 &&
               ` · proposed topics: ${generateResult.proposed_topics.join(', ')}`}
           </p>

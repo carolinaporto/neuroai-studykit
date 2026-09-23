@@ -68,5 +68,6 @@ class GenerateResponse(BaseModel):
     chunks_processed: int
     items_saved: int
     items_rejected: int
+    items_deduped: int
     chunks_failed: int
     proposed_topics: list[str]
