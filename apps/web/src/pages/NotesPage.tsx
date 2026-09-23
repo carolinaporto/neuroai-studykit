@@ -7,6 +7,7 @@ import { useSession } from '../auth/useAuth'
 import { Button } from '../components/Button'
 import { InsightNote } from '../components/InsightNote'
 import { LockedPlaceholder } from '../components/LockedPlaceholder'
+import { useToast } from '../components/toastContext'
 import './NotesPage.css'
 
 const DISCIPLINES: Discipline[] = ['Neuroscience', 'Computer Science', 'Psychology']
@@ -15,6 +16,7 @@ export function NotesPage() {
   const { data: session } = useSession()
   const signedIn = session?.signed_in ?? false
   const queryClient = useQueryClient()
+  const toast = useToast()
   const notesQuery = useQuery({ queryKey: ['notes'], queryFn: listNotes, enabled: signedIn })
 
   const [title, setTitle] = useState('')
@@ -27,12 +29,14 @@ export function NotesPage() {
     mutationFn: createNote,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notes'] })
+      toast.success('Note created')
       setTitle('')
       setBody('')
       setUrl('')
       setSelected([])
       setIsPublic(false)
     },
+    onError: (error) => toast.error((error as Error).message),
   })
 
   if (!signedIn) return <LockedPlaceholder section="Notes & Insights" />
@@ -106,9 +110,6 @@ export function NotesPage() {
         <Button type="submit" disabled={createMutation.isPending || !canSubmit}>
           {createMutation.isPending ? 'Saving…' : 'Add note'}
         </Button>
-        {createMutation.isError && (
-          <p className="caption note-error">{(createMutation.error as Error).message}</p>
-        )}
       </form>
 
       {notes.length === 0 && <p className="body">No notes yet.</p>}

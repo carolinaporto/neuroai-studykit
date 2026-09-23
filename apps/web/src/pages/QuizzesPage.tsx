@@ -5,6 +5,7 @@ import { listQuizWeeks, startQuiz } from '../api/client'
 import { useSession } from '../auth/useAuth'
 import { LockedPlaceholder } from '../components/LockedPlaceholder'
 import { QuizCard } from '../components/QuizCard'
+import { useToast } from '../components/toastContext'
 import './QuizzesPage.css'
 
 export function QuizzesPage() {
@@ -12,6 +13,7 @@ export function QuizzesPage() {
   const signedIn = session?.signed_in ?? false
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const toast = useToast()
   const weeksQuery = useQuery({
     queryKey: ['quiz-weeks'],
     queryFn: listQuizWeeks,
@@ -24,6 +26,7 @@ export function QuizzesPage() {
       queryClient.invalidateQueries({ queryKey: ['quiz-weeks'] })
       navigate(`/quizzes/${data.quiz_attempt_id}`)
     },
+    onError: (error) => toast.error((error as Error).message),
   })
 
   if (!signedIn) return <LockedPlaceholder section="Quizzes" />
@@ -50,7 +53,6 @@ export function QuizzesPage() {
           />
         ))}
       </div>
-      {startMutation.isError && <p className="caption">{(startMutation.error as Error).message}</p>}
     </div>
   )
 }

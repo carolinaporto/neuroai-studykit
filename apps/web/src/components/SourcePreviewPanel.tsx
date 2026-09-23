@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteSource, getSource, sourceFileUrl } from '../api/client'
 import { formatLocator } from '../lib/locator'
 import { Button } from './Button'
+import { useToast } from './toastContext'
 import './SourcePreviewPanel.css'
 
 // Only a PDF can be embedded natively in the browser — .pptx and transcripts fall back to
@@ -19,6 +20,7 @@ export function SourcePreviewPanel({
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const query = useQuery({
     queryKey: ['source', sourceId],
     queryFn: () => getSource(sourceId),
@@ -28,8 +30,10 @@ export function SourcePreviewPanel({
     mutationFn: () => deleteSource(sourceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sources'] })
+      toast.success('Source deleted')
       onClose()
     },
+    onError: (error) => toast.error((error as Error).message),
   })
 
   function handleDelete() {
@@ -75,11 +79,6 @@ export function SourcePreviewPanel({
               {deleteMutation.isPending ? 'Deleting…' : 'Delete source'}
             </Button>
           </div>
-          {deleteMutation.isError && (
-            <p className="caption source-preview-error">
-              {(deleteMutation.error as Error).message}
-            </p>
-          )}
 
           {EMBEDDABLE_KINDS.has(query.data.kind) ? (
             <iframe

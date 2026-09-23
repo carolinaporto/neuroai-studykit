@@ -48,6 +48,11 @@
   background: var(--accent-neuro-soft);
 }
 
+.upload-choose-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .upload-file-list,
 .upload-result-list {
   list-style: none;
@@ -73,10 +78,6 @@
 
 .upload-result-failed,
 .upload-result-too_large {
-  color: var(--danger);
-}
-
-.upload-error {
   color: var(--danger);
 }
 

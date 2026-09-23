@@ -5,6 +5,7 @@ import { generateQuestions, uploadSources } from '../api/client'
 import type { GenerateResponse, UploadResult } from '../api/types'
 import { filesFromDataTransferItems } from '../lib/folderUpload'
 import { Button } from './Button'
+import { useToast } from './toastContext'
 import './SourceUploadPanel.css'
 
 // Same set packages/ingest/cli.py's PARSERS supports — kept in sync by hand, mirrored here
@@ -28,15 +29,19 @@ const RESULT_LABEL: Record<UploadResult['status'], string> = {
 
 export function SourceUploadPanel() {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [week, setWeek] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [uploadResults, setUploadResults] = useState<UploadResult[] | null>(null)
   const [generateResult, setGenerateResult] = useState<GenerateResponse | null>(null)
   const [force, setForce] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
   // webkitdirectory has no JSX/React prop — it has to be set imperatively on the DOM node.
+  // Only on folderInputRef: fileInputRef stays a plain multi-file picker, so clicking
+  // "Choose files" doesn't force a folder-only dialog the way a single shared input did.
   useEffect(() => {
     folderInputRef.current?.setAttribute('webkitdirectory', '')
     folderInputRef.current?.setAttribute('directory', '')
@@ -53,6 +58,7 @@ export function SourceUploadPanel() {
       setUploadResults(data.results)
       queryClient.invalidateQueries({ queryKey: ['sources'] })
     },
+    onError: (error) => toast.error((error as Error).message),
   })
 
   const generateMutation = useMutation({
@@ -61,6 +67,7 @@ export function SourceUploadPanel() {
       setGenerateResult(data)
       queryClient.invalidateQueries({ queryKey: ['quiz-weeks'] })
     },
+    onError: (error) => toast.error((error as Error).message),
   })
 
   function resetSelection(nextFiles: File[]) {
@@ -74,7 +81,7 @@ export function SourceUploadPanel() {
     resetSelection(await filesFromDataTransferItems(e.dataTransfer.items))
   }
 
-  function handleFolderPick(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     resetSelection(Array.from(e.target.files ?? []))
   }
 
@@ -105,10 +112,16 @@ export function SourceUploadPanel() {
       >
         <p className="body-sm">Drag a folder or files here</p>
         <p className="caption">or</p>
-        <Button type="button" variant="secondary" onClick={() => folderInputRef.current?.click()}>
-          Choose a folder
-        </Button>
-        <input ref={folderInputRef} type="file" multiple hidden onChange={handleFolderPick} />
+        <div className="upload-choose-buttons">
+          <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+            Choose files
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => folderInputRef.current?.click()}>
+            Choose a folder
+          </Button>
+        </div>
+        <input ref={fileInputRef} type="file" multiple hidden onChange={handleFilePick} />
+        <input ref={folderInputRef} type="file" multiple hidden onChange={handleFilePick} />
       </div>
 
       {files.length > 0 && (
@@ -135,9 +148,6 @@ export function SourceUploadPanel() {
           ? 'Uploading…'
           : `Upload ${supportedFiles.length} file${supportedFiles.length === 1 ? '' : 's'}`}
       </Button>
-      {uploadMutation.isError && (
-        <p className="caption upload-error">{(uploadMutation.error as Error).message}</p>
-      )}
 
       {uploadResults && (
         <ul className="upload-result-list">
@@ -169,9 +179,6 @@ export function SourceUploadPanel() {
             ? 'Generating…'
             : `Generate questions for week ${week || '…'}`}
         </Button>
-        {generateMutation.isError && (
-          <p className="caption upload-error">{(generateMutation.error as Error).message}</p>
-        )}
         {generateResult && (
           <p className="caption">
             {generateResult.chunks_processed} chunks processed · {generateResult.items_saved} items

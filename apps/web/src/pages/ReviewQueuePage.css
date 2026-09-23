@@ -64,10 +64,6 @@
   padding: var(--space-5);
 }
 
-.review-error {
-  color: var(--danger);
-}
-
 /* --- edit form --- */
 
 .review-edit-form {

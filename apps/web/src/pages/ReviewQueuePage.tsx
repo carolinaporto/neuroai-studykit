@@ -6,7 +6,14 @@ import { listReviewQueue, patchItem } from '../api/client'
 import type { ItemPatchRequest, ReviewItemOut, RubricPoint } from '../api/types'
 import { Button } from '../components/Button'
 import { ReviewSourcePassage } from '../components/ReviewSourcePassage'
+import { useToast } from '../components/toastContext'
 import './ReviewQueuePage.css'
+
+const STATUS_TOAST_LABEL: Record<string, string> = {
+  approved: 'Item approved',
+  edited: 'Item saved as edited',
+  retired: 'Item retired',
+}
 
 const BLOOM_LEVELS = ['recall', 'understand', 'apply', 'analyze']
 const MIN_RUBRIC_POINTS = 2
@@ -242,6 +249,7 @@ export function ReviewQueuePage() {
   const weekNumber = Number(week)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const query = useQuery({ queryKey: ['review-queue'], queryFn: listReviewQueue })
 
@@ -267,7 +275,10 @@ export function ReviewQueuePage() {
       else if (status === 'retired') setTally((t) => ({ ...t, retired: t.retired + 1 }))
       queryClient.invalidateQueries({ queryKey: ['review-queue'] })
       queryClient.invalidateQueries({ queryKey: ['quiz-weeks'] })
+      const label = variables.body.status && STATUS_TOAST_LABEL[variables.body.status]
+      if (label) toast.success(label)
     },
+    onError: (error) => toast.error((error as Error).message),
   })
 
   function handleApprove() {
@@ -357,10 +368,6 @@ export function ReviewQueuePage() {
             Back to Review
           </Button>
         </div>
-      )}
-
-      {patchMutation.isError && (
-        <p className="caption review-error">{(patchMutation.error as Error).message}</p>
       )}
     </div>
   )

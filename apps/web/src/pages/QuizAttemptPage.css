@@ -38,10 +38,6 @@
   outline-offset: 2px;
 }
 
-.quiz-error {
-  color: var(--danger);
-}
-
 .quiz-actions {
   display: flex;
   gap: var(--space-2);

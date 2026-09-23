@@ -56,11 +56,6 @@
   text-decoration: none;
 }
 
-.source-preview-error {
-  color: var(--danger);
-  flex-shrink: 0;
-}
-
 .source-preview-frame {
   flex: 1;
   min-height: 0;

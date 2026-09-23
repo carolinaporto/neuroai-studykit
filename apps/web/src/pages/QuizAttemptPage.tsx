@@ -6,6 +6,7 @@ import { reviewQuiz, submitStudyAnswer } from '../api/client'
 import type { QuizReviewItem, RubricHit, StudyAnswerResponse, StudyQueueItem } from '../api/types'
 import { Button } from '../components/Button'
 import { SourcePassage } from '../components/SourcePassage'
+import { useToast } from '../components/toastContext'
 import './QuizAttemptPage.css'
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -106,6 +107,7 @@ export function QuizAttemptPage() {
   const { attemptId } = useParams<{ attemptId: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [responseText, setResponseText] = useState('')
   const [lastResult, setLastResult] = useState<StudyAnswerResponse | null>(null)
   const [lastAnsweredItemId, setLastAnsweredItemId] = useState<string | null>(null)
@@ -128,6 +130,7 @@ export function QuizAttemptPage() {
       queryClient.invalidateQueries({ queryKey: ['quiz-attempt', attemptId] })
       queryClient.invalidateQueries({ queryKey: ['quiz-weeks'] })
     },
+    onError: (error) => toast.error((error as Error).message),
   })
 
   // Skipped items sink to the end of the queue instead of disappearing — "pull the item
@@ -298,9 +301,6 @@ export function QuizAttemptPage() {
               </Button>
             )}
           </div>
-          {answerMutation.isError && (
-            <p className="caption quiz-error">{(answerMutation.error as Error).message}</p>
-          )}
         </>
       ) : (
         <p className="body">Finishing up…</p>
