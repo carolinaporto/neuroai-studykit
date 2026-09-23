@@ -220,6 +220,11 @@ async def _spent_today_by_owner(session: AsyncSession, *, owner_id: uuid.UUID) -
                 Source.owner_id == owner_id,
                 IngestJob.created_at >= since,
                 IngestJob.kind == IngestJobKind.generate,
+                # attempts=0 marks a chunk this same check already rejected before any LLM
+                # call was made — excluded, same as grading (a rejected request never
+                # creates an Attempt either), so one rejection doesn't count against a
+                # future check for no real spend.
+                IngestJob.attempts > 0,
             )
         )
     ).all()

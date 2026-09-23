@@ -109,8 +109,9 @@ async def patch_item(
         raise HTTPException(status_code=404, detail="item not found")
 
     # Item has no owner_id of its own — ownership is via its Source, same indirection
-    # sources.py's _get_owned_source resolves directly; there's no such helper to share
-    # here without an apps.api-internal import cycle, so it's inlined.
+    # sources.py's _get_owned_source resolves. That's a private helper local to that
+    # router, not meant for cross-module reuse, so this inlines the same check rather
+    # than importing it.
     source = await session.get(Source, item.source_id)
     if source is None or source.owner_id != user_id:
         raise HTTPException(status_code=404, detail="item not found")

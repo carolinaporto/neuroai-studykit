@@ -69,6 +69,13 @@ async def spent_today(session: AsyncSession, *, owner_id: UUID) -> tuple[int, in
                 Source.owner_id == owner_id,
                 IngestJob.created_at >= since,
                 IngestJob.kind == IngestJobKind.generate,
+                # attempts=0 marks a chunk rejected by this same budget check before any
+                # LLM call was made (generate_for_week) — excluded, same as grading: a
+                # rejected request never creates an Attempt either, so it can't count
+                # against a future check. Without this, one rejection would count as a
+                # "call" forever (until it ages out of the window), tightening the call
+                # limit for no real spend.
+                IngestJob.attempts > 0,
             )
         )
     ).all()

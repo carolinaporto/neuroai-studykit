@@ -16,7 +16,7 @@ import json
 import uuid
 
 import pytest
-from ingest.cli import generate_for_week
+from ingest.cli import _spent_today_by_owner, generate_for_week
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -239,5 +239,46 @@ async def test_generate_for_week_stops_before_the_llm_call_once_the_daily_budget
         assert result["items_saved"] == 0
         assert fake_llm.calls == []
         assert chunk_id  # referenced for clarity — no item exists for it either way
+    finally:
+        await _cleanup(session_factory, [source_id])
+
+
+@pytest.mark.asyncio
+async def test_a_budget_rejected_chunk_does_not_count_against_a_later_check() -> None:
+    """A rejected chunk still logs a real (failed) IngestJob for the audit trail, but must
+    not count as a "call" the next time the budget is checked — same as grading, where a
+    rejected request never creates an Attempt either. Without this, one rejection would
+    tighten the call limit for the rest of the rolling window despite spending nothing.
+
+    Baseline-then-delta (not an absolute count): this runs against the real dev Postgres,
+    same as every test in this file, so other tests' rows under the same dev_owner_id are
+    real and expected — see tests/test_api_progress.py's docstring for the same pattern.
+    """
+    session_factory = make_session_factory(DbSettings().database_url)
+    settings = DbSettings()
+    async with session_factory() as session:
+        calls_before, tokens_before = await _spent_today_by_owner(
+            session, owner_id=settings.dev_owner_id
+        )
+
+    _, source_id = await _make_chunk(session_factory)
+    try:
+        result = await generate_for_week(
+            WEEK,
+            session_factory,
+            FakeLLM([]),
+            FakeEmbeddingClient([]),
+            force=False,
+            daily_token_budget=1,  # impossibly low: any real estimate exceeds it
+            max_calls_per_day=1000,
+        )
+        assert result["chunks_failed"] == 1
+
+        async with session_factory() as session:
+            calls_after, tokens_after = await _spent_today_by_owner(
+                session, owner_id=settings.dev_owner_id
+            )
+        assert calls_after == calls_before
+        assert tokens_after == tokens_before
     finally:
         await _cleanup(session_factory, [source_id])
