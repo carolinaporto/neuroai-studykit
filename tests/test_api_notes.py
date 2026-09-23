@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from apps.api.core.db import get_session
-from apps.api.core.deps import require_owner
+from apps.api.core.deps import get_current_user_id, require_owner
 from apps.api.main import app
 from packages.db.models import Note, Source, SourceKind, SourceStatus, User
 from packages.db.session import DbSettings, make_session_factory
@@ -28,6 +28,7 @@ async def _test_client(
     app.dependency_overrides[get_session] = override_get_session
     if signed_in:
         app.dependency_overrides[require_owner] = lambda: None
+        app.dependency_overrides[get_current_user_id] = lambda: DbSettings().dev_owner_id
     try:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -35,6 +36,7 @@ async def _test_client(
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(require_owner, None)
+        app.dependency_overrides.pop(get_current_user_id, None)
 
 
 async def _ensure_owner(session: AsyncSession, owner_id: uuid.UUID) -> None:

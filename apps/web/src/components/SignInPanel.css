@@ -8,51 +8,29 @@
   z-index: 100;
 }
 
+/* Clerk's <SignIn/>/<SignUp/> render their own card chrome (background, padding, shadow) —
+   this is just the click-stop wrapper so a click inside the widget doesn't bubble up and
+   close the overlay via signin-overlay's own onClick. */
 .signin-panel {
-  width: 320px;
-  background: var(--surface-100);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: var(--space-5);
-  box-sizing: border-box;
+  display: flex;
+}
+
+.signin-panel-inner {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-3);
 }
 
-.signin-hint {
-  color: var(--ink-soft);
-  margin: 0;
-}
-
-.signin-label {
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.signin-input {
+.signin-mode-toggle {
+  all: unset;
+  cursor: pointer;
+  color: var(--accent-neuro);
   font-family: var(--font-sans);
-  font-size: 15px;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-50);
-  color: var(--ink);
+  font-size: 13px;
 }
 
-.signin-input:focus-visible {
+.signin-mode-toggle:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-}
-
-.signin-error {
-  color: var(--danger);
-  margin: 0;
-}
-
-.signin-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
 }

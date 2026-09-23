@@ -2,6 +2,8 @@
 
 export interface SessionStatus {
   signed_in: boolean
+  // This app's own mapped role (owner/student/demo) — null whenever signed_in is false.
+  role: string | null
 }
 
 export interface StudySessionRequest {

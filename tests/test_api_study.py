@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from apps.api.core.config import settings as api_settings
 from apps.api.core.db import get_session
-from apps.api.core.deps import get_llm_client, require_owner
+from apps.api.core.deps import get_current_user_id, get_llm_client, require_owner
 from apps.api.main import app
 from apps.api.services.budget import estimate_call_tokens
 from apps.api.services.grading import compute_score, grade_exact_match
@@ -230,6 +230,7 @@ async def _test_client(
 
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[require_owner] = lambda: None
+    app.dependency_overrides[get_current_user_id] = lambda: DbSettings().dev_owner_id
     if llm is not None:
         app.dependency_overrides[get_llm_client] = lambda: llm
     try:
@@ -239,6 +240,7 @@ async def _test_client(
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(require_owner, None)
+        app.dependency_overrides.pop(get_current_user_id, None)
         if llm is not None:
             app.dependency_overrides.pop(get_llm_client, None)
 

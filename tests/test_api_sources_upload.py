@@ -16,7 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from apps.api.core.db import get_session, get_session_factory
-from apps.api.core.deps import get_embedding_client, get_llm_client, require_owner
+from apps.api.core.deps import (
+    get_current_user_id,
+    get_embedding_client,
+    get_llm_client,
+    require_owner,
+)
 from apps.api.main import app
 from packages.core.embeddings import EmbeddingClient, FakeEmbeddingClient
 from packages.core.llm import FakeLLM, LLMClient
@@ -53,6 +58,7 @@ async def _test_client(
     # session_factory's original event loop instead of this test's.
     app.dependency_overrides[get_session_factory] = lambda: session_factory
     app.dependency_overrides[require_owner] = lambda: None
+    app.dependency_overrides[get_current_user_id] = lambda: DbSettings().dev_owner_id
     # Always overridden: upload can call the LLM now (scanned PDF pages), and no test may
     # reach the real API (invariant 5) — a test that forgets to pass one gets an empty fake
     # that raises if it is ever called.
@@ -70,6 +76,7 @@ async def _test_client(
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_session_factory, None)
         app.dependency_overrides.pop(require_owner, None)
+        app.dependency_overrides.pop(get_current_user_id, None)
         app.dependency_overrides.pop(get_llm_client, None)
         app.dependency_overrides.pop(get_embedding_client, None)
 

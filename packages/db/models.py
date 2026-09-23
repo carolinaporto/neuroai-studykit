@@ -103,6 +103,12 @@ class User(UUIDPkMixin, CreatedAtMixin, Base):
     __tablename__ = "user"
 
     email: Mapped[str] = mapped_column(String, unique=True)
+    # M12: Clerk's stable user id — the real lookup key once a user has logged in at least
+    # once (apps/api/core/deps.py). NULL for a hand-seeded dev/test fixture row that's never
+    # actually signed in through Clerk (see _ensure_owner in packages/ingest/cli.py and
+    # apps/api/routers/sources.py). Email is only the lookup key on a user's very first
+    # login, to match an existing hand-seeded row instead of creating a duplicate.
+    clerk_user_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     role: Mapped[UserRole] = mapped_column(
         SqlEnum(UserRole, name="user_role"), default=UserRole.owner
     )

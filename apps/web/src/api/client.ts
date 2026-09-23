@@ -22,16 +22,27 @@ import type {
   WeekReviewQueue,
   WeekSources,
 } from './types'
+import { getAuthToken } from '../auth/clerkTokenStore'
 
 // Never a secret — just the backend's own address. VITE_* would leak into the client
 // bundle, but that's fine here (CLAUDE.md invariant 3 is about API keys, not this).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // M12: Clerk's session token, not a cookie — apps/web/src/auth/clerkTokenStore.ts is
+  // the bridge that keeps this readable outside of a hook. null (signed out, or Clerk
+  // hasn't loaded yet) just means no Authorization header, same as an anonymous request
+  // always could send.
+  const token = await getAuthToken()
+  const headers: HeadersInit = { 'Content-Type': 'application/json', ...init?.headers }
+  if (token) {
+    ;(headers as Record<string, string>).Authorization = `Bearer ${token}`
+  }
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    credentials: 'include', // sends/accepts the owner session cookie
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    credentials: 'include',
+    headers,
   })
   if (!res.ok) {
     const detail = await res.text()
@@ -62,14 +73,9 @@ function del<T>(path: string): Promise<T> {
 
 // --- auth ---
 
-export function login(password: string): Promise<SessionStatus> {
-  return post('/api/auth/login', { password })
-}
-
-export function logout(): Promise<SessionStatus> {
-  return post('/api/auth/logout')
-}
-
+// M12: sign-in/out happen entirely through Clerk (see apps/web/src/auth/useAuth.ts) — this
+// is the one auth call left, reporting whether the request's Clerk session verified and
+// which app role it maps to.
 export function getSession(): Promise<SessionStatus> {
   return get('/api/auth/session')
 }

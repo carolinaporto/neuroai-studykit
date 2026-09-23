@@ -7,22 +7,33 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+asyncpg://studykit:studykit@localhost:5433/studykit"
-    # Identidade fixa da única usuária — auth (abaixo) só decide se uma requisição pode agir
-    # como ela; não existe conta de verdade nem OIDC até o M12. Mesmo default de
-    # packages/db/session.DbSettings.
+    # Fixed id every test fixture creates its rows under (see tests/*'s shared _test_client
+    # helpers) — no longer how production resolves "who's logged in" as of M12, but every
+    # ingestion script/test still needs one stable owner id to seed rows against.
     dev_owner_id: uuid.UUID = uuid.UUID("00000000-0000-4000-8000-000000000001")
     # Circuit breaker para /api/study/answer — ver apps/api/services/budget.py e
     # ARCHITECTURE.md §7. Mesmos nomes de .env.example.
     daily_token_budget: int = 200_000
     max_gradings_per_day: int = 300
-    # Auth leve de usuária única — ver apps/api/core/auth.py. Uma senha, não uma conta: o
-    # site é público em partes (Overview, Homework) e trancado nas outras (Sources, Quizzes,
-    # Notes) para todo visitante que não souber a senha. Sem valor default: uma sessão criada
-    # com segredo vazio autentica qualquer um, então login fica bloqueado até isto ser
-    # configurado (ver auth.py).
-    owner_password: str = ""
-    session_secret: str = ""
+    # M12: real auth via Clerk (OIDC + magic link) — see apps/api/core/auth.py. No default
+    # for the secret key on purpose: a request can't be verified as signed-in with an empty
+    # key, so auth fails closed until this is configured, same reasoning the old
+    # OWNER_PASSWORD had.
+    clerk_secret_key: str = ""
+    # Whichever ALLOWED_EMAILS address matches this one gets role=owner on first login;
+    # every other allowed address gets role=student. Never the User.role column's own
+    # default — see apps/api/core/deps.py.
+    owner_email: str = ""
+    # Comma-separated in .env; ARCHITECTURE.md's own framing: "quem não está na lista não
+    # cria conta, mesmo tendo a URL" — enforced by this app, not left to Clerk's dashboard.
+    # Raw string field (matches the env var name pydantic-settings expects); use the
+    # `allowed_email_set` property below, never this one directly.
+    allowed_emails: str = ""
     env: str = "development"
+
+    @property
+    def allowed_email_set(self) -> set[str]:
+        return {email.strip().lower() for email in self.allowed_emails.split(",") if email.strip()}
 
 
 settings = Settings()

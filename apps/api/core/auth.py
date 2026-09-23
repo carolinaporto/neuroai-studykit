@@ -1,52 +1,21 @@
-"""Single-owner auth: one password (`OWNER_PASSWORD`), one signed session cookie — not an
-account system. `design/synapse` requires the site to tell a signed-in owner from a public
-visitor (Sources/Quizzes/Notes lock for the visitor, Overview/Homework stay open), and that's
-the entire job this module does. Real multi-user auth (OIDC, magic links) is still M12 in
-docs/IMPLEMENTATION_PLAN.md; this is deliberately smaller.
+"""Real auth via Clerk (OIDC + magic link) — M12, replacing the hand-rolled single
+password this repo started with. Clerk owns sign-up, sign-in and sending the magic-link
+email itself; FastAPI only *verifies* the session token it issues (invariant-3-adjacent:
+`CLERK_SECRET_KEY` never leaves the backend, same as `ANTHROPIC_API_KEY`).
 
-The session token is `f"{issued_at}.{hmac_sha256(issued_at, SESSION_SECRET)}"` — no
-`itsdangerous`/JWT dependency needed for a token that carries no payload beyond a timestamp,
-since the only thing being asserted is "whoever holds this typed the password within
-SESSION_TTL_SECONDS," not an identity (there's only ever one).
+`ALLOWED_EMAILS` is enforced in `apps/api/core/deps.py`, by this app, not left to Clerk's
+own dashboard configuration — `ARCHITECTURE.md`'s own framing: "quem não está na lista não
+cria conta, mesmo tendo a URL."
 """
 
-import hashlib
-import hmac
-import time
-
-SESSION_COOKIE_NAME = "studykit_session"
-SESSION_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days — a personal-site convenience session
+from clerk_backend_api import AuthenticateRequestOptions, authenticate_request
+from clerk_backend_api.security.types import RequestState
+from fastapi import Request
 
 
-def _signature(issued_at: str, secret: str) -> str:
-    return hmac.new(secret.encode(), issued_at.encode(), hashlib.sha256).hexdigest()
-
-
-def create_session_token(secret: str) -> str:
-    issued_at = str(int(time.time()))
-    return f"{issued_at}.{_signature(issued_at, secret)}"
-
-
-def verify_session_token(
-    token: str, secret: str, *, ttl_seconds: int = SESSION_TTL_SECONDS
-) -> bool:
-    """`False` for anything malformed, tampered, or expired — never raises, so callers can
-    treat any falsy result as "not signed in" without a try/except."""
-    issued_at, _, signature = token.partition(".")
-    if not issued_at or not signature:
-        return False
-    if not hmac.compare_digest(_signature(issued_at, secret), signature):
-        return False
-    try:
-        age = time.time() - int(issued_at)
-    except ValueError:
-        return False
-    return 0 <= age <= ttl_seconds
-
-
-def check_password(candidate: str, expected: str) -> bool:
-    """Constant-time comparison; `expected == ""` (unconfigured `OWNER_PASSWORD`) always
-    fails rather than matching an empty submission."""
-    if not expected:
-        return False
-    return hmac.compare_digest(candidate, expected)
+def verify_request(request: Request, secret_key: str) -> RequestState:
+    """Verifies the Clerk session token on `request` (Bearer header or cookie — Clerk
+    checks both on its own). `.status` is `AuthStatus.SIGNED_IN`/`SIGNED_OUT`; when signed
+    in, `.payload` is the verified JWT's claims, which must include `email` — see the
+    Clerk dashboard's "customize session token" step this milestone's plan called for."""
+    return authenticate_request(request, AuthenticateRequestOptions(secret_key=secret_key))

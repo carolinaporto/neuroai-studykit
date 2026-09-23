@@ -1,55 +1,32 @@
-"""`POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session` — the whole
-sign-in surface for the single-owner cookie session in `apps/api/core/auth.py`.
+"""`GET /api/auth/session` — M12: reports whether the request carries a valid Clerk
+session and this app's own mapped role, so the frontend has one source of truth for both
+instead of reading Clerk's client state for "signed in" and asking the backend separately
+for "which role." Sign-in/out happen entirely through Clerk's own components on the
+frontend now — this router no longer accepts a password (see `apps/api/core/auth.py`).
 """
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.core.auth import (
-    SESSION_COOKIE_NAME,
-    SESSION_TTL_SECONDS,
-    check_password,
-    create_session_token,
-    verify_session_token,
-)
-from apps.api.core.config import settings
-from apps.api.schemas.auth import LoginRequest, SessionStatus
+from apps.api.core.db import get_session
+from apps.api.core.deps import get_current_user_id
+from apps.api.schemas.auth import SessionStatus
+from packages.db.models import User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
-    response.set_cookie(
-        SESSION_COOKIE_NAME,
-        token,
-        max_age=SESSION_TTL_SECONDS,
-        httponly=True,
-        samesite="lax",
-        secure=settings.env == "production",
-        path="/",
-    )
-
-
-@router.post("/login", response_model=SessionStatus)
-async def login(body: LoginRequest, response: Response) -> SessionStatus:
-    if not settings.owner_password or not settings.session_secret:
-        raise HTTPException(
-            status_code=503, detail="OWNER_PASSWORD/SESSION_SECRET not configured"
-        )
-    if not check_password(body.password, settings.owner_password):
-        raise HTTPException(status_code=401, detail="wrong password")
-
-    _set_session_cookie(response, create_session_token(settings.session_secret))
-    return SessionStatus(signed_in=True)
-
-
-@router.post("/logout", response_model=SessionStatus)
-async def logout(response: Response) -> SessionStatus:
-    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
-    return SessionStatus(signed_in=False)
-
-
 @router.get("/session", response_model=SessionStatus)
-async def session_status(request: Request) -> SessionStatus:
-    token = request.cookies.get(SESSION_COOKIE_NAME)
-    signed_in = token is not None and verify_session_token(token, settings.session_secret)
-    return SessionStatus(signed_in=signed_in)
+async def session_status(
+    request: Request, session: AsyncSession = Depends(get_session)
+) -> SessionStatus:
+    # Called directly (not via Depends) so a missing/invalid/not-allowed token yields a
+    # plain "not signed in" response instead of this endpoint itself 401/403ing — a
+    # signed-out visitor checking status is the normal case, not an error.
+    try:
+        user_id = await get_current_user_id(request, session)
+    except HTTPException:
+        return SessionStatus(signed_in=False)
+
+    user = await session.get(User, user_id)
+    return SessionStatus(signed_in=True, role=user.role if user else None)

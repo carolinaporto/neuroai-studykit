@@ -1,44 +1,40 @@
-import { useState } from 'react'
+import { SignIn, SignUp } from '@clerk/react'
+import { useEffect, useState } from 'react'
 
-import { useLogin } from '../auth/useAuth'
-import { Button } from './Button'
+import { useSession } from '../auth/useAuth'
 import './SignInPanel.css'
 
+// M12: Clerk owns the whole sign-in flow (including the magic-link "check your email, then
+// come back here" step — routing="hash" keeps every sub-step inside this overlay via a URL
+// hash fragment, no real page navigation or extra routes to configure). This panel's only
+// job is the overlay chrome, switching between sign-in and sign-up (Clerk's <SignIn/>
+// rejects an email with no existing Clerk account yet — "Couldn't find your account" is
+// expected for anyone's very first visit, not an error), and closing itself once the
+// session actually goes through.
 export function SignInPanel({ onClose }: { onClose: () => void }) {
-  const [password, setPassword] = useState('')
-  const login = useLogin()
+  const { data: session } = useSession()
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    login.mutate(password, { onSuccess: onClose })
-  }
+  useEffect(() => {
+    if (session?.signed_in) onClose()
+  }, [session?.signed_in, onClose])
 
   return (
     <div className="signin-overlay" onClick={onClose}>
-      <form className="signin-panel" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <h2 className="h3">Sign in</h2>
-        <p className="body-sm signin-hint">Sources, Quizzes and Notes are private.</p>
-        <label className="label signin-label" htmlFor="signin-password">
-          Password
-        </label>
-        <input
-          id="signin-password"
-          type="password"
-          className="signin-input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoFocus
-        />
-        {login.isError && <p className="caption signin-error">{(login.error as Error).message}</p>}
-        <div className="signin-actions">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={password.trim() === '' || login.isPending}>
-            {login.isPending ? 'Signing in…' : 'Sign in'}
-          </Button>
+      <div className="signin-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="signin-panel-inner">
+          {mode === 'sign-in' ? <SignIn routing="hash" /> : <SignUp routing="hash" />}
+          <button
+            type="button"
+            className="signin-mode-toggle"
+            onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
+          >
+            {mode === 'sign-in'
+              ? 'First time here? Create an account'
+              : 'Already have an account? Sign in'}
+          </button>
         </div>
-      </form>
+      </div>
     </div>
   )
 }
