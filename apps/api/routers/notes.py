@@ -59,9 +59,12 @@ async def patch_note(
     note_id: uuid.UUID,
     body: NotePatchRequest,
     session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> Note:
     note = await session.get(Note, note_id)
-    if note is None:
+    if note is None or note.owner_id != user_id:
+        # 404, not 403: same as sources.py's _get_owned_source — don't confirm to the
+        # caller that a note_id they don't own even exists.
         raise HTTPException(status_code=404, detail="note not found")
 
     updates = body.model_dump(exclude_unset=True)

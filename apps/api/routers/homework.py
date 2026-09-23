@@ -55,9 +55,10 @@ async def patch_homework(
     homework_id: uuid.UUID,
     body: HomeworkPatchRequest,
     session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> Homework:
     homework = await session.get(Homework, homework_id)
-    if homework is None:
+    if homework is None or homework.owner_id != user_id:
         raise HTTPException(status_code=404, detail="homework not found")
 
     updates = body.model_dump(exclude_unset=True)

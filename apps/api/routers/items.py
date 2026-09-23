@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.core.db import get_session
-from apps.api.core.deps import require_owner
+from apps.api.core.deps import get_current_user_id, require_owner
 from apps.api.schemas.items import ItemOut, ItemPatchRequest, ReviewItemOut, WeekReviewQueue
 from packages.db.models import Chunk, Item, ItemBloom, ItemStatus, ItemType, Source
 from packages.ingest.topics import load_topics
@@ -102,9 +102,17 @@ async def patch_item(
     item_id: uuid.UUID,
     body: ItemPatchRequest,
     session: AsyncSession = Depends(get_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
 ) -> Item:
     item = await session.get(Item, item_id)
     if item is None:
+        raise HTTPException(status_code=404, detail="item not found")
+
+    # Item has no owner_id of its own — ownership is via its Source, same indirection
+    # sources.py's _get_owned_source resolves directly; there's no such helper to share
+    # here without an apps.api-internal import cycle, so it's inlined.
+    source = await session.get(Source, item.source_id)
+    if source is None or source.owner_id != user_id:
         raise HTTPException(status_code=404, detail="item not found")
 
     updates = body.model_dump(exclude_unset=True)

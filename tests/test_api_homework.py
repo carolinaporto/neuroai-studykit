@@ -171,6 +171,45 @@ async def test_patch_homework_publishes_it() -> None:
 
 
 @pytest.mark.asyncio
+async def test_patch_homework_404s_on_an_entry_owned_by_someone_else() -> None:
+    """Security fix: patch_homework() used to fetch by homework_id alone, with no owner_id
+    check — any owner-role account could publish/unpublish/edit another user's portfolio
+    entry by id."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    other_owner_id = uuid.uuid4()
+    homework_ids: list[uuid.UUID] = []
+
+    async with session_factory() as session:
+        session.add(User(id=other_owner_id, email="someone-else@studykit.local"))
+        await session.flush()
+        row = Homework(
+            owner_id=other_owner_id,
+            week=10,
+            title="Not yours",
+            description="...",
+            disciplines=["Neuroscience"],
+        )
+        session.add(row)
+        await session.commit()
+        homework_ids = [row.id]
+        homework_id = row.id
+
+    try:
+        async with _test_client(session_factory, signed_in=True) as client:
+            resp = await client.patch(
+                f"/api/homework/{homework_id}", json={"status": "published"}
+            )
+            assert resp.status_code == 404
+    finally:
+        await _cleanup(session_factory, homework_ids)
+        async with session_factory() as session:
+            other_user = await session.get(User, other_owner_id)
+            if other_user is not None:
+                await session.delete(other_user)
+            await session.commit()
+
+
+@pytest.mark.asyncio
 async def test_create_homework_rejects_unknown_discipline() -> None:
     session_factory = make_session_factory(DbSettings().database_url)
     owner_id = DbSettings().dev_owner_id

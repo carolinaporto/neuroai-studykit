@@ -229,6 +229,66 @@ async def test_item_leaves_the_review_queue_once_approved_or_retired() -> None:
 
 
 @pytest.mark.asyncio
+async def test_patch_item_404s_on_an_item_owned_by_someone_else() -> None:
+    """Security fix: patch_item() used to fetch by item_id alone, with no ownership check
+    at all — any owner-role account could edit/approve/retire another user's review-queue
+    item by id. source.owner_id must now match the authenticated user (dev_owner_id, per
+    _test_client's override) for the PATCH to succeed."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    other_owner_id = uuid.uuid4()
+
+    async with session_factory() as session:
+        session.add(User(id=other_owner_id, email="someone-else@studykit.local"))
+        await session.flush()
+        source = Source(
+            owner_id=other_owner_id,
+            week=8105,
+            title="not-yours-source",
+            kind=SourceKind.lecture_pdf,
+            storage_uri="test://m6",
+            sha256=uuid.uuid4().hex + uuid.uuid4().hex,
+            status=SourceStatus.ingested,
+        )
+        session.add(source)
+        await session.flush()
+        chunk = Chunk(
+            source_id=source.id, ordinal=0, text=CHUNK_TEXT, locators=[{"page": 7}],
+            token_count=40,
+        )
+        session.add(chunk)
+        await session.flush()
+        item = Item(
+            source_id=source.id,
+            chunk_ids=[chunk.id],
+            type=ItemType.free_recall,
+            prompt="not yours",
+            reference_answer="ref",
+            rubric=RUBRIC,
+            difficulty=2,
+            bloom=ItemBloom.understand,
+            topics=[],
+            status=ItemStatus.draft,
+            gen_model="test",
+            gen_prompt_version="test",
+        )
+        session.add(item)
+        await session.commit()
+        item_id, source_id = item.id, source.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.patch(f"/api/items/{item_id}", json={"status": "approved"})
+            assert resp.status_code == 404
+    finally:
+        await _cleanup(session_factory, [source_id])
+        async with session_factory() as session:
+            other_user = await session.get(User, other_owner_id)
+            if other_user is not None:
+                await session.delete(other_user)
+            await session.commit()
+
+
+@pytest.mark.asyncio
 async def test_rubric_edit_bound_is_type_aware() -> None:
     """M7: `_validate_rubric_edit` must apply cloze/mcq's exactly-1-point rule, not the
     free_recall/term_def 2-5 rule, to whichever item is being edited."""

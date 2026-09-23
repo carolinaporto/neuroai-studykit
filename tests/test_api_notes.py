@@ -263,3 +263,38 @@ async def test_patch_note_rejects_clearing_body_and_url_together() -> None:
             assert resp.status_code == 422
     finally:
         await _cleanup(session_factory, note_ids)
+
+
+@pytest.mark.asyncio
+async def test_patch_note_404s_on_a_note_owned_by_someone_else() -> None:
+    """Security fix: patch_note() used to fetch by note_id alone, with no owner_id check —
+    any owner-role account could edit or flip is_public on another user's note by id."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    other_owner_id = uuid.uuid4()
+    note_ids: list[uuid.UUID] = []
+
+    async with session_factory() as session:
+        session.add(User(id=other_owner_id, email="someone-else@studykit.local"))
+        await session.flush()
+        note = Note(
+            owner_id=other_owner_id,
+            title="Not yours",
+            body="private thought",
+            disciplines=["Psychology"],
+        )
+        session.add(note)
+        await session.commit()
+        note_ids = [note.id]
+        note_id = note.id
+
+    try:
+        async with _test_client(session_factory) as client:
+            resp = await client.patch(f"/api/notes/{note_id}", json={"is_public": True})
+            assert resp.status_code == 404
+    finally:
+        await _cleanup(session_factory, note_ids)
+        async with session_factory() as session:
+            other_user = await session.get(User, other_owner_id)
+            if other_user is not None:
+                await session.delete(other_user)
+            await session.commit()
