@@ -58,13 +58,30 @@ def prompt_version_hash(path: Path = PROMPT_PATH) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+_DELIMITER_TAG_RE = re.compile(r"</?student_response>", re.IGNORECASE)
+
+
+def _escape_delimiter(text: str) -> str:
+    """Neutralizes a literal `<student_response>`/`</student_response>` inside untrusted
+    student text before it's substituted into the prompt template.
+
+    Invariant 7 says the student's text is delimited data, never able to act as an
+    instruction — but a plain string substitution doesn't enforce that on its own: an
+    answer containing the literal closing tag, followed by new instruction-like text, would
+    render as content *outside* the delimited block, appearing to the model as if it came
+    after the real boundary. Swapping `<`/`>` for the visually similar `‹`/`›` (U+2039/203A)
+    keeps the text readable while making it impossible for the substituted text to match
+    the exact string the prompt tells the model to treat as the boundary."""
+    return _DELIMITER_TAG_RE.sub(lambda m: m.group(0).translate({60: "‹", 62: "›"}), text)
+
+
 def render_prompt(
     template: str, *, item_prompt: str, rubric: list[dict], response_text: str
 ) -> str:
     points_block = "\n".join(f"- {p['id']}: {p['point']}" for p in rubric)
     rendered = template.replace("{{item_prompt}}", item_prompt)
     rendered = rendered.replace("{{rubric_points}}", points_block)
-    rendered = rendered.replace("{{student_response}}", response_text)
+    rendered = rendered.replace("{{student_response}}", _escape_delimiter(response_text))
     return rendered
 
 
