@@ -1,6 +1,6 @@
-The site's single menu — five fixed sections, each either open, locked, or public. Consumer provides the active route and the viewer's signed-in state; the nav itself owns nothing else.
+The site's single menu — eight fixed sections, each either open, locked, or public. Consumer provides the active route and the viewer's signed-in state; the nav itself owns nothing else.
 
-Sections, in order and never reordered: **Overview** (open to everyone), **Sources**, **Quizzes**, **Notes & Insights** (all three locked until signed in), **Homework** (public, always open). A signed-out visitor sees all five, including the locked three — never hide a section, since the goal is for the site to read as a complete portfolio from the outside.
+Sections, in order and never reordered: **Overview** (open to everyone), **Sources**, **Review**, **Quizzes**, **Progress**, **Check-in**, **Notes & Insights** (all six locked until signed in), **Homework** (public, always open). A signed-out visitor sees all eight, including the locked six — never hide a section, since the goal is for the site to read as a complete portfolio from the outside.
 
 States:
 - `.is-active` — `accent-neuro-soft` fill, `accent-neuro` text and icon. At most one item at a time.

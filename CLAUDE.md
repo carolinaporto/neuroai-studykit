@@ -21,7 +21,6 @@ vez**, na ordem de @docs/IMPLEMENTATION_PLAN.md.
 ```bash
 make up            # docker compose up -d (postgres+pgvector)
 make api           # uvicorn com reload
-make worker        # consumidor da fila de ingestão
 make web           # vite dev server
 make test          # pytest + vitest
 make lint          # ruff check --fix + prettier
@@ -77,7 +76,8 @@ Se um comando ainda não existe no `Makefile`, crie-o no marco em que for necess
 - Schemas de entrada/saída da API em `apps/api/schemas/`, separados dos modelos ORM.
   Router nunca retorna objeto ORM direto.
 - IDs são UUID v4. Timestamps são `timestamptz`, sempre UTC.
-- Locators são jsonb com formato fixo: `{"page": 7}`, `{"slide": 12}`, `{"t0": 872, "t1": 965}`.
+- `Chunk.locators` é uma lista de jsonb, cada item num formato fixo: `{"page": 7}`,
+  `{"slide": 12}`, `{"t0": 872, "t1": 965}`.
 - Prompts de LLM são arquivos versionados em `packages/ingest/prompts/`, não strings
   inline. O hash do arquivo vai para `Item.gen_prompt_version`.
 - Mensagens de commit em inglês, formato convencional (`feat:`, `fix:`, `test:`, `chore:`).
