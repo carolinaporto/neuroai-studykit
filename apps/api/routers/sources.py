@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from apps.api.core.config import settings
 from apps.api.core.db import get_session, get_session_factory
 from apps.api.core.deps import (
     get_current_user_id,
@@ -302,6 +303,12 @@ async def generate_questions(
     raised — the same behavior the CLI has always had, so one bad chunk doesn't lose the
     rest of the week's results."""
     result = await generate_for_week(
-        body.week, session_factory, llm, embedding_client, force=body.force
+        body.week,
+        session_factory,
+        llm,
+        embedding_client,
+        force=body.force,
+        daily_token_budget=settings.daily_token_budget,
+        max_calls_per_day=settings.max_gradings_per_day,
     )
     return GenerateResponse(**result)

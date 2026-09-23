@@ -183,7 +183,13 @@ async def test_dedup_catches_a_match_against_an_existing_item_and_against_this_s
 
     try:
         result = await generate_for_week(
-            WEEK, session_factory, fake_llm, fake_embeddings, force=False
+            WEEK,
+            session_factory,
+            fake_llm,
+            fake_embeddings,
+            force=False,
+            daily_token_budget=1_000_000,
+            max_calls_per_day=1000,
         )
 
         assert result["chunks_processed"] == 2
@@ -203,3 +209,35 @@ async def test_dedup_catches_a_match_against_an_existing_item_and_against_this_s
         assert len(saved) == 1
     finally:
         await _cleanup(session_factory, [existing_source_id, chunk1_source, chunk2_source])
+
+
+@pytest.mark.asyncio
+async def test_generate_for_week_stops_before_the_llm_call_once_the_daily_budget_is_hit() -> None:
+    """Security/correctness fix: the daily budget circuit breaker used to only guard
+    grading — a stuck retry loop hitting /api/sources/generate had nothing stopping it.
+    max_calls_per_day=0 means the very first chunk is already over budget, so the LLM must
+    never be called at all (fake_llm.calls stays empty), and that chunk is counted as
+    failed rather than silently skipped."""
+    session_factory = make_session_factory(DbSettings().database_url)
+    chunk_id, source_id = await _make_chunk(session_factory)
+
+    fake_llm = FakeLLM([])  # any call at all is a bug — the queue is deliberately empty
+    fake_embeddings = FakeEmbeddingClient([])
+
+    try:
+        result = await generate_for_week(
+            WEEK,
+            session_factory,
+            fake_llm,
+            fake_embeddings,
+            force=False,
+            daily_token_budget=1_000_000,
+            max_calls_per_day=0,
+        )
+
+        assert result["chunks_failed"] == 1
+        assert result["items_saved"] == 0
+        assert fake_llm.calls == []
+        assert chunk_id  # referenced for clarity — no item exists for it either way
+    finally:
+        await _cleanup(session_factory, [source_id])

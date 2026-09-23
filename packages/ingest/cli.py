@@ -12,18 +12,17 @@ import json
 import re
 import sys
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from packages.core.budget import BudgetExceededError, BudgetSettings, check_budget
 from packages.core.embeddings import EmbeddingClient, EmbeddingSettings, OpenAIEmbeddingClient
-from packages.core.llm import AnthropicLLMClient, LLMClient, LLMSettings
+from packages.core.llm import MAX_OUTPUT_TOKENS, AnthropicLLMClient, LLMClient, LLMSettings
 from packages.db.models import (
-    Chunk as ChunkRow,
-)
-from packages.db.models import (
+    Attempt,
     IngestJob,
     IngestJobKind,
     IngestJobStatus,
@@ -35,9 +34,12 @@ from packages.db.models import (
     SourceStatus,
     User,
 )
+from packages.db.models import (
+    Chunk as ChunkRow,
+)
 from packages.db.session import DbSettings, make_session_factory
 
-from .chunker import chunk_blocks
+from .chunker import chunk_blocks, estimate_tokens
 from .dedup import find_duplicate_item
 from .generator import GenerationFailedError, generate_items_for_chunk, prompt_version_hash
 from .models import Chunk, Locator, ParsedBlock
@@ -193,6 +195,40 @@ async def sync_folder(
     return counts
 
 
+_BUDGET_ROLLING_WINDOW = timedelta(hours=24)
+
+
+async def _spent_today_by_owner(session: AsyncSession, *, owner_id: uuid.UUID) -> tuple[int, int]:
+    """(calls, tokens) in the rolling 24h window across every LLM call this owner has
+    already spent — grading (`Attempt`) and generation (`IngestJob`, kind=generate). Same
+    query `apps/api/services/budget.py::spent_today` runs; duplicated rather than imported
+    for invariant 4 (this module can't import anything from `apps.api`)."""
+    since = datetime.now(UTC) - _BUDGET_ROLLING_WINDOW
+    grading_calls, grading_tokens = (
+        await session.execute(
+            select(func.count(Attempt.id), func.coalesce(func.sum(Attempt.tokens_used), 0)).where(
+                Attempt.user_id == owner_id, Attempt.created_at >= since
+            )
+        )
+    ).one()
+
+    generate_jobs = (
+        await session.scalars(
+            select(IngestJob)
+            .join(Source, Source.id == IngestJob.source_id)
+            .where(
+                Source.owner_id == owner_id,
+                IngestJob.created_at >= since,
+                IngestJob.kind == IngestJobKind.generate,
+            )
+        )
+    ).all()
+    generate_calls = len(generate_jobs)
+    generate_tokens = sum(job.payload.get("estimated_tokens", 0) for job in generate_jobs)
+
+    return grading_calls + generate_calls, grading_tokens + generate_tokens
+
+
 async def generate_for_week(
     week: int,
     session_factory: async_sessionmaker[AsyncSession],
@@ -200,6 +236,8 @@ async def generate_for_week(
     embedding_client: EmbeddingClient,
     *,
     force: bool = False,
+    daily_token_budget: int,
+    max_calls_per_day: int,
 ) -> dict[str, object]:
     """Generates draft items for every chunk of every Source with `week=week`.
 
@@ -216,6 +254,12 @@ async def generate_for_week(
     (`packages/ingest/dedup.py`) before it's persisted — a near-duplicate from an
     overlapping chunk is counted in `items_deduped`, never saved. `embedding_client` has no
     default (same as `llm`): a forgotten wire-up should fail loudly, not silently skip dedup.
+
+    `daily_token_budget`/`max_calls_per_day` have no default either, same reasoning:
+    checked once per chunk, before that chunk's LLM call — a budget exhausted mid-run stops
+    the whole loop (the remaining chunks count as `chunks_failed`, not silently skipped),
+    the same circuit-breaker CLAUDE.md/ARCHITECTURE.md §7 describes for grading, now also
+    covering the "bug de loop na ingestão" scenario that section names as the actual risk.
     """
     vocabulary = load_topics()
     prompt_version = prompt_version_hash()
@@ -233,6 +277,7 @@ async def generate_for_week(
         if not sources:
             return {**counts, "proposed_topics": proposed_topics}
         source_ids = [s.id for s in sources]
+        owner_id_by_source_id = {s.id: s.owner_id for s in sources}
 
         covered_chunk_ids: set[uuid.UUID] = set()
         if not force:
@@ -254,12 +299,42 @@ async def generate_for_week(
                 continue
             counts["chunks_processed"] += 1
 
+            owner_id = owner_id_by_source_id[chunk.source_id]
+            estimated_tokens = estimate_tokens(chunk.text) + MAX_OUTPUT_TOKENS
+            calls_today, tokens_today = await _spent_today_by_owner(session, owner_id=owner_id)
+            try:
+                check_budget(
+                    calls_today=calls_today,
+                    tokens_today=tokens_today,
+                    estimated_tokens=estimated_tokens,
+                    daily_token_budget=daily_token_budget,
+                    max_calls_per_day=max_calls_per_day,
+                )
+            except BudgetExceededError as exc:
+                # A real IngestJob row, not just a skipped chunk: the next run's own budget
+                # check (and anyone looking at IngestJob for this source) sees exactly why
+                # this chunk — and everything after it, this run stops here — was never
+                # attempted, same as any other failure reason.
+                session.add(
+                    IngestJob(
+                        source_id=chunk.source_id,
+                        kind=IngestJobKind.generate,
+                        status=IngestJobStatus.failed,
+                        attempts=0,
+                        error=str(exc),
+                        payload={"chunk_id": str(chunk.id)},
+                    )
+                )
+                await session.commit()
+                counts["chunks_failed"] += 1
+                break
+
             job = IngestJob(
                 source_id=chunk.source_id,
                 kind=IngestJobKind.generate,
                 status=IngestJobStatus.running,
                 attempts=1,
-                payload={"chunk_id": str(chunk.id)},
+                payload={"chunk_id": str(chunk.id), "estimated_tokens": estimated_tokens},
             )
             session.add(job)
             await session.commit()
@@ -335,6 +410,7 @@ def _run_generate(week: int, force: bool) -> int:
     db_settings = DbSettings()
     llm_settings = LLMSettings()
     embedding_settings = EmbeddingSettings()
+    budget_settings = BudgetSettings()
     session_factory = make_session_factory(db_settings.database_url)
     llm = AnthropicLLMClient(
         api_key=llm_settings.anthropic_api_key, model=llm_settings.llm_model_generate
@@ -345,7 +421,15 @@ def _run_generate(week: int, force: bool) -> int:
     )
 
     result = asyncio.run(
-        generate_for_week(week, session_factory, llm, embedding_client, force=force)
+        generate_for_week(
+            week,
+            session_factory,
+            llm,
+            embedding_client,
+            force=force,
+            daily_token_budget=budget_settings.daily_token_budget,
+            max_calls_per_day=budget_settings.max_gradings_per_day,
+        )
     )
     print(
         f"{result['chunks_processed']} chunks processados, {result['items_saved']} itens salvos, "
