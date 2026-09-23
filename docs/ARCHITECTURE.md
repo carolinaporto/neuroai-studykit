@@ -36,80 +36,101 @@ Duas consequências práticas:
 
 ## 2. Visão geral
 
+Não existe worker nem fila separada — a ingestão roda **síncrona**, dentro da própria
+requisição HTTP (`POST /api/sources/upload`) ou do processo do CLI
+(`python -m ingest.cli`). `IngestJob` registra o resultado de cada rodada (status, erro),
+mas nada além do processo que já está rodando o consome.
+
 ```mermaid
 flowchart LR
   subgraph Entrada
     A1[Upload PDF/PPTX na UI]
-    A2[Transcrição de vídeo]
-    A3[Pasta content/ no repo + CLI]
+    A2["Pasta content/ no repo + CLI"]
   end
 
-  A1 & A2 & A3 --> Q[(job queue<br/>Postgres)]
-  Q --> W[Worker de ingestão]
+  A1 --> API1["POST /api/sources/upload"]
+  A2 --> CLI["python -m ingest.cli sync"]
+  API1 & CLI --> P[parse + locators]
+  P --> C[chunking]
+  C --> DB1[(Chunk no Postgres)]
+  DB1 --> G["POST /api/sources/generate<br/>geração LLM, structured output"]
+  G --> V["validação:<br/>quote literal + dedup por embedding"]
+  V --> DB2[(Item, status=draft)]
 
-  W --> P[parse + locators]
-  P --> C[chunking semântico]
-  C --> E[embeddings]
-  C --> G[geração LLM<br/>structured output]
-  G --> V[validação:<br/>quote literal + dedup]
-  V --> DB[(Postgres + pgvector)]
+  DB2 --> R[UI de revisão<br/>draft → approved]
+  R --> DB2
 
-  DB --> R[UI de revisão<br/>draft → approved]
-  R --> DB
-
-  DB --> API[FastAPI]
+  DB2 --> API[FastAPI]
   API --> S[Study Runner<br/>React]
   S -->|item_id + resposta| API
   API --> GR[Grader LLM<br/>rubrica + chunk]
   GR --> API
-  API --> SCH[Scheduler FSRS]
+  API --> SCH[ReviewState via FSRS]
 ```
 
 ---
 
 ## 3. Modelo de dados
 
+Estado real (`packages/db/models.py`), não o desenho original — ver nota de multiusuário
+abaixo sobre uma diferença deliberada em relação ao rascunho inicial deste documento.
+
 ```
 User
-  id, email, role: owner | student | demo, created_at
+  id, email, clerk_user_id, role: owner | student | demo, created_at
 
-Source                        # uma aula, deck, transcrição ou paper
-  id, week:int, title, kind: lecture_pdf | slides | transcript | paper | notes
-  storage_uri, sha256, page_count/duration, status, ingested_at
-  -- sha256 evita reingerir o mesmo arquivo
+Source                        # uma aula, slides, transcrição ou paper
+  id, owner_id, week:int|null, title, kind: lecture_pdf|slides|transcript|paper|notes
+  storage_uri, file_data: bytea|null, file_media_type, sha256, page_count, duration_seconds
+  status: pending|ingested|failed, ingested_at
+  -- sha256 evita reingerir o mesmo arquivo; file_data guarda os bytes direto no Postgres
+  -- (nunca em R2/S3 — ver §9), null quando a fonte veio do CLI, que só referencia o
+  -- caminho local em storage_uri
 
 Chunk                         # a ÂNCORA de citação
   id, source_id, ordinal, text
-  locator: jsonb  -- {page: 7} | {slide: 12, has_notes: true} | {t0: 872, t1: 965}
-  token_count, embedding: vector(1536)
+  locators: jsonb[]  -- [{page: 7}] | [{slide: 12}] | [{t0: 872, t1: 965}]
+  token_count, embedding: vector(1536)  -- coluna existe, ainda não escrita por nada (dormant)
 
 Item                          # uma questão
   id, source_id, chunk_ids: uuid[]
   type: free_recall | term_def | cloze | mcq | compare | application
   prompt, reference_answer
-  rubric: jsonb   -- [{id, point, weight, support_quote, chunk_id}, ...]
-  choices: jsonb  -- só para mcq
+  rubric: jsonb   -- [{id, point, weight, support_quote}, ...]
+  choices: jsonb|null  -- só para mcq
   difficulty:1-5, bloom: recall|understand|apply|analyze
-  topics: text[]  -- "receptive fields", "backprop", "predictive coding"
+  topics: text[]  -- vocabulário controlado, topics.yaml
   status: draft | approved | edited | retired
   gen_model, gen_prompt_version, created_at
+  embedding: vector(1536)|null  -- do prompt, para dedup (M7 part 2); Chunk.embedding acima
+                                 -- é uma coluna diferente, ainda dormant
 
-Deck
-  id, owner_id, title, kind: week | topic | exam_prep | demo
-  visibility: private | shared | public_demo   -- costura: só 'private' é usado na v1
-  DeckItem(deck_id, item_id, position)
+QuizAttempt                   # uma passada pelo recall check de uma semana
+  id, user_id, week, item_ids: uuid[]  -- congelado na criação
+  status: in_progress | completed, score: float|null, completed_at
 
 Attempt
-  id, user_id, item_id, response_text
+  id, user_id, item_id, quiz_attempt_id: uuid|null  -- null = resposta avulsa, fora de quiz
+  response_text, response_hash
   score: float 0-1, rubric_hits: jsonb  -- [{point_id, covered, evidence}]
   misconceptions: text[], feedback_md
-  grader_model, latency_ms, created_at
+  grader_model, latency_ms, tokens_used, created_at
 
-ReviewState                   # FSRS / SM-2 por (user, item)
+ReviewState                   # FSRS por (user, item) — uq(user_id, item_id)
   user_id, item_id, stability, difficulty, due_at, reps, lapses, last_grade
+  last_reviewed_at, fsrs_card: jsonb  -- fsrs.Card.to_dict(), fonte da verdade do algoritmo
+
+Homework                      # entrada de portfólio pública (design/synapse's HomeworkCard)
+  id, owner_id, week, title, description, disciplines: text[]
+  code_url, live_url, status: draft | published
+  -- guarda só metadado + links de saída; o conteúdo do homework é um projeto à parte
+
+Note                          # anotação pessoal (design/synapse's InsightNote)
+  id, owner_id, title, body:text|null, url:text|null, disciplines: text[]
+  week:int|null, source_id:uuid|null, is_public: bool = false
 
 IngestJob
-  id, source_id, kind, status: queued|running|done|failed
+  id, source_id, kind: parse_and_chunk|generate, status: queued|running|done|failed
   attempts, error, payload: jsonb, locked_at, locked_by
 ```
 
@@ -124,11 +145,15 @@ Notas de design:
 - `Attempt` guarda a resposta bruta. Depois de um mês você tem um corpus do que você
   *acha* que sabe versus o que recupera — que é, inclusive, material para o check-in
   semanal.
-- **As costuras de multiusuário existem desde a v1, a UI não.** `owner_id`,
-  `visibility` e `User.role` entram no schema agora e toda consulta de deck já passa por
-  um filtro que recebe o usuário atual — mesmo havendo um usuário só. É barato agora e
-  caro depois: abrir para colegas ou para um demo público passa a ser escrever a UI de
-  convite e mudar um valor de enum, não migrar tabelas e auditar cada query.
+- **As costuras de multiusuário existem desde a v1, a UI não — mas não como um `Deck`
+  separado.** O rascunho original desta seção previa uma tabela `Deck` com
+  `visibility: private|shared|public_demo` agrupando itens; na prática o que foi
+  construído é mais simples e direto: `owner_id` em cada tabela dona de conteúdo
+  (`Source`, `Homework`, `Note`), `User.role` para o papel, e visibilidade por linha onde
+  faz sentido (`Note.is_public`; `Homework` é público por padrão quando `published`,
+  `Source`/`Item` nunca são). Mesmo efeito prático do desenho original — abrir pra
+  colegas é mudar um valor, não migrar tabela — sem a indireção de um `Deck` que nada
+  além do design original chegou a precisar.
 
 ---
 
@@ -150,11 +175,12 @@ Etapas:
 3. **Chunking semântico** — agrupa por heading/slide, alvo de 500–900 tokens, overlap de
    ~15%. Nunca corte no meio de uma definição: prefira quebrar em heading, e se um slide
    for curto, junte com o vizinho mantendo os dois locators.
-4. **Embeddings** dos chunks (pgvector) — serve para dedup e para "me mostre tudo do curso
-   sobre X".
+4. **Embeddings** — não dos chunks (`Chunk.embedding` existe na coluna mas nada escreve
+   nela ainda); o dedup real (passo 7) usa o embedding do *enunciado do item*, gerado
+   depois que o item já existe.
 5. **Geração** — 1 chamada por grupo de chunks, saída estruturada validada por um modelo
    Pydantic (`GeneratedItemBatch`). Peça uma *mistura* de tipos por chunk, não 5 questões
-   do mesmo formato. O prompt vai versionado em `packages/ingest/prompts/generate_v3.md`
+   do mesmo formato. O prompt vai versionado em `packages/ingest/prompts/generate_v4.md`
    e o hash dele fica em `Item.gen_prompt_version` — assim você sabe quais questões vieram
    de qual versão quando melhorar o prompt.
 6. **Validação** — quote literal presente no chunk; rubrica com 2–5 pontos; nenhum item
@@ -163,18 +189,23 @@ Etapas:
    existente da mesma semana.
 8. `status = draft` → fila de revisão.
 
-**Fila de jobs:** tabela `IngestJob` no próprio Postgres com
-`SELECT ... FOR UPDATE SKIP LOCKED`, consumida por um processo worker separado. Isso evita
-adicionar Redis + Celery a um projeto solo. Se um dia precisar de agendamento e retry mais
-sofisticado, migre para `arq` — a interface do serviço não muda.
+**Sem fila, sem worker.** `IngestJob` registra o resultado de cada rodada (status, erro,
+tentativas) para auditoria, mas ninguém a consome de forma assíncrona — parse, chunking e
+geração rodam síncronos dentro da própria requisição (`POST /api/sources/upload`,
+`POST /api/sources/generate`) ou do processo do CLI. Isso evita adicionar Redis + Celery
+a um projeto solo com volume baixo. Se um dia o volume justificar processamento em
+background de verdade, `arq` é a opção mais barata a considerar — a tabela já existe.
 
 ---
 
 ## 5. Correção ao vivo
 
 ```
-POST /api/study/answer  { item_id, response_text, session_id }
+POST /api/study/answer  { item_id, response_text, quiz_attempt_id? }
 ```
+
+`quiz_attempt_id` é opcional — presente quando a resposta é um item de um `QuizAttempt`
+(o recall check semanal), ausente para uma resposta avulsa fora de qualquer quiz.
 
 1. Carrega `Item` + `rubric` + o texto dos `chunk_ids`.
 2. Uma chamada de LLM com saída estruturada:
@@ -201,22 +232,24 @@ Para `mcq` e `cloze`, a correção é determinística: zero chamada de LLM. Só
 ```
 neuroai-studykit/
 ├─ apps/
-│  ├─ api/                    # FastAPI
-│  │  ├─ routers/             auth sources ingest items decks study progress
-│  │  ├─ services/            ingestion grading scheduling budget
-│  │  ├─ repos/               SQLAlchemy 2.0 (async)
-│  │  ├─ core/                config.py (pydantic-settings) security.py llm.py
-│  │  ├─ models/  schemas/    ORM  |  Pydantic I/O
-│  │  └─ worker.py            consumidor da fila
-│  └─ web/                    React + Vite + TS + TanStack Query + Tailwind
-│     └─ src/routes/          landing study library review progress
+│  ├─ api/                    # FastAPI — sem worker, um processo só
+│  │  ├─ routers/             auth checkin homework items notes progress sources study
+│  │  ├─ services/            grading scheduling mastery budget
+│  │  ├─ core/                config.py (pydantic-settings) auth.py deps.py db.py llm.py
+│  │  ├─ schemas/              Pydantic I/O — nunca o ORM direto na resposta
+│  │  └─ prompts/              grade_v1.md (o prompt do corretor, versionado)
+│  └─ web/                    React + Vite + TS + TanStack Query
+│     └─ src/pages/           Overview Sources Review Quizzes Progress Checkin Notes Homework
 ├─ packages/
-│  └─ ingest/                 parsers, chunker, generator, prompts/, cli.py
+│  ├─ db/                     modelos ORM (SQLAlchemy 2.0 async) + session factory —
+│  │                          compartilhado por apps/api e packages/ingest
+│  └─ ingest/                 parsers, chunker, generator, prompts/, dedup.py, cli.py
 │                             (importado pela API *e* pelo CLI — uma implementação só)
+├─ design/synapse/             design system (tokens, componentes, regras de conteúdo)
 ├─ content/                   material do curso  ← GITIGNORED (ver §8)
-│  └─ demo/                   deck público, escrito por você  ← commitado
 ├─ alembic/                   migrations
-├─ docker-compose.yml         postgres+pgvector, api, worker, web
+├─ docker-compose.yml         só o banco (postgres+pgvector) — api e web rodam direto,
+│                             local e em produção (ver §9)
 └─ .env.example
 ```
 
@@ -224,18 +257,28 @@ Regra que vale ouro: **`packages/ingest` não importa nada de `apps/api`.** Ele 
 bytes e devolve objetos Pydantic. É isso que permite rodar a ingestão pelo CLI sem subir
 servidor, e testá-la sem banco.
 
-### Contratos de API (esboço)
+### Contratos de API (real)
 
 ```
-POST   /api/auth/callback              troca código OIDC por sessão
-GET    /api/sources                    lista + status de ingestão
-POST   /api/sources                    upload multipart → cria IngestJob
-GET    /api/items?status=draft&week=3  fila de revisão (owner)
-PATCH  /api/items/{id}                 aprovar / editar / aposentar
-POST   /api/study/session              {deck_id|topics|due_only} → fila de itens
-POST   /api/study/answer               correção (acima)
-GET    /api/progress                   mastery por tópico, due counts, curva de acerto
-GET    /api/checkin/draft?week=3       rascunho do check-in semanal a partir das stats
+GET    /api/auth/session                verifica o token Clerk, devolve {signed_in, role}
+GET    /api/sources                     lista fontes por semana + status de ingestão
+POST   /api/sources/upload              upload multipart → parse + chunk síncrono
+POST   /api/sources/generate            gera Item a partir dos chunks de uma semana
+GET    /api/sources/{id}                detalhe de uma fonte
+GET    /api/sources/{id}/file           bytes originais do arquivo
+DELETE /api/sources/{id}
+GET    /api/items/review                fila de revisão (owner), agrupada por semana
+PATCH  /api/items/{id}                  aprovar / editar / aposentar
+POST   /api/study/session               fila de itens para prática avulsa
+POST   /api/study/answer                correção por rubrica (score em Python)
+GET    /api/study/items/{id}/source     passagem-fonte de um item ("não sei essa")
+POST   /api/study/quiz                  inicia o recall check de uma semana
+GET    /api/study/weeks                 semanas com quiz disponível
+GET    /api/study/quiz/{id}             revisão de um QuizAttempt concluído
+GET    /api/progress                    mastery por tópico, due counts
+GET    /api/checkin/draft?week=3        rascunho do check-in semanal a partir das stats
+GET    /api/notes · POST /api/notes · PATCH /api/notes/{id}
+GET    /api/homework · POST /api/homework · PATCH /api/homework/{id}   -- só Homework é público
 ```
 
 ---
@@ -248,17 +291,20 @@ Três coisas distintas que a palavra "público" confunde, decididas separadament
 |---|---|---|
 | **Código** (GitHub) | público — é o portfólio | — |
 | **Site** (a URL) | privado, só você entra | opcional: convite a colegas, ou demo anônimo |
-| **Conteúdo** (decks) | tudo `private` | `shared` por convite / `public_demo` |
+| **Conteúdo** (fontes, notas) | tudo privado | notas públicas por opt-in; Homework é público por padrão |
 
 - **`ANTHROPIC_API_KEY` só existe no backend.** `core/config.py` com `pydantic-settings`,
   `.env` gitignorado, `.env.example` commitado. O bundle do React nunca toca em chave —
   nem em variável `VITE_*`, que **vai para o cliente** e é a pegadinha clássica. Isso vale
   independentemente do site ser privado: o repo é público e o histórico do git é para
   sempre.
-- **Auth:** provedor OIDC hospedado (Auth0 / Clerk / Supabase Auth) com magic link,
-  emitindo JWT; o FastAPI só *verifica*, na dependency `get_current_user`. Um usuário só,
-  mas auth de verdade — você demonstra a competência sem virar responsável por armazenar
-  senha, e sem inventar criptografia.
+- **Auth: Clerk** (decidido no M12 — Auth0 tinha free tier só por tempo limitado, não um
+  plano grátis de verdade), OIDC com magic link, emitindo JWT; o FastAPI só *verifica*, em
+  `apps/api/core/deps.py::get_current_user_id`. Um usuário só, mas auth de verdade — você
+  demonstra a competência sem virar responsável por armazenar senha, e sem inventar
+  criptografia. Roda com a instância **Development** da Clerk mesmo em produção — uma
+  instância "Production" de verdade exige domínio próprio, que este projeto optou por não
+  ter (ver §9); trade-off razoável para um app de um usuário só.
 - **Papéis no enum desde já:** `owner` (ingere, aprova, vê tudo) · `student` (estuda decks
   a que foi convidado) · `demo` (anônimo, só `public_demo`, sem escrita). Na v1 só existe
   `owner`; os outros dois são a costura.
@@ -272,8 +318,9 @@ Três coisas distintas que a palavra "público" confunde, decididas separadament
 - **Orçamento:** teto diário de tokens por usuário em `services/budget.py` desde a v1 — o
   risco real com site privado não é abuso, é um bug de loop na ingestão consumindo a conta
   numa madrugada. Rate limit por IP entra junto com o acesso público, se ele vier.
-- CORS restrito à origem do front. Uploads: só `.pdf/.pptx/.vtt/.srt/.md`, limite de
-  tamanho, nome sanitizado, armazenado por UUID (nunca pelo nome original).
+- CORS restrito à origem do front (regex de localhost em dev, `WEB_ORIGIN` explícito em
+  produção). Uploads: só `.pdf/.pptx/.vtt/.srt`, até 50 MB, bytes guardados por UUID
+  (nunca pelo nome original do arquivo).
 
 **O portfólio não depende do site estar aberto.** O que um recrutador avalia é o repo: o
 `README` com um GIF do loop de estudo rodando, o desenho do pipeline de ingestão, a
@@ -293,10 +340,11 @@ redistribuir**. Então:
   privado, não em fixtures do repo. Os testes usam um **corpus sintético** em
   `tests/fixtures/`: dois ou três "textos de aula" que você mesmo escreve, sobre conceitos
   básicos, suficientes para exercitar parser, chunker, gerador e grader de ponta a ponta.
-- Esse mesmo corpus sintético é o que vira o deck de demonstração, se um dia você abrir o
-  site. Ou seja: escrevê-lo agora não é trabalho jogado fora — é o fixture de teste e a
-  vitrine futura na mesma pasta.
-- O GIF do `README` usa o corpus sintético, não a Semana 3 do GENED.
+- Esse mesmo corpus sintético é o que serviria de conteúdo de demonstração, se um dia o
+  site abrir pra estranhos. Ou seja: escrevê-lo agora não é trabalho jogado fora — é o
+  fixture de teste e a vitrine futura na mesma pasta, mesmo que hoje nada em `content/`
+  além do `README.md` esteja de fato commitado.
+- O GIF do `README` (quando gravado) usa o app rodando local, não a Semana 3 do GENED.
 
 Isso não é só conformidade: um recrutador que abre o repo e vê `content/` vazio com um
 `README` explicando o porquê lê isso como bom julgamento.
@@ -325,8 +373,9 @@ seção (que previa um worker separado e storage em R2; nenhum dos dois chegou a
 
 **Fase 1 — o loop fechado (MVP).**
 Ingestão só por `content/` + CLI. Parser de PDF. Chunking. Geração de `free_recall` e
-`term_def`. Tabelas `Source/Chunk/Item/Attempt` (já com `owner_id`/`visibility`). Study
-runner com correção por rubrica. Um usuário, sem auth ainda — `owner_id` fixo via env.
+`term_def`. Tabelas `Source/Chunk/Item/Attempt` (já com `owner_id`, a costura de
+multiusuário — ver §3). Study runner com correção por rubrica. Um usuário, sem auth
+ainda — `owner_id` fixo via env.
 *Critério de pronto: você estuda a Semana 1 de verdade no seu app.*
 
 **Fase 2 — confiança.** UI de revisão draft→approved. Dedup. Validação de quote literal.
@@ -343,9 +392,10 @@ tokens, deploy. Curto: é a fase que torna o site seguro de deixar no ar, não a
 CI rodando os testes. **É esta a fase que faz o trabalho de portfólio**, não um site aberto.
 
 **Fase 6 — extras, por vontade.** Upload pela UI, transcrições com Whisper, modo exame
-cronometrado, busca semântica. E, se der vontade: convite a colegas (`visibility=shared`)
-ou demo anônimo (`public_demo` + rate limit por IP) — as costuras já estão no lugar desde
-a Fase 1.
+cronometrado, busca semântica. E, se der vontade: convite a colegas (um segundo e-mail em
+`ALLOWED_EMAILS`, role `student`) ou demo anônimo (rate limit por IP) — as costuras já
+estão no lugar desde a Fase 1, mesmo sem UI nenhuma construída em cima delas ainda (ver §3
+sobre a diferença entre esse plano e o `Deck.visibility` do rascunho original).
 
 Construa nessa ordem. A Fase 1 já satisfaz o requisito do curso; a Fase 5 é o portfólio.
 
@@ -359,8 +409,8 @@ Construa nessa ordem. A Fase 1 já satisfaz o requisito do curso; a Fase 5 é o 
 | Nota do grader instável entre execuções | rubrica fixa + agregação determinística em Python |
 | Conta de API explodindo (bug de loop na ingestão) | teto diário de tokens, cache, endpoint de escopo fechado |
 | Chave vazando no bundle ou no histórico do git | chave só no backend; `VITE_*` nunca recebe segredo; `.env` gitignorado desde o primeiro commit |
-| Abrir o site depois exigir reescrita | `owner_id`/`visibility`/`role` e filtro por usuário desde a v1 |
+| Abrir o site depois exigir reescrita | `owner_id`/`is_public`/`role` e filtro por usuário desde a v1 |
 | Questões redundantes entre aulas | dedup por embedding do enunciado |
 | Estudo virar releitura passiva | resposta digitada obrigatória antes de revelar o gabarito |
-| Material do curso num repo público | `content/` gitignorado, demo próprio commitado |
+| Material do curso num repo público | `content/` gitignorado; testes e demo futuro rodam no corpus sintético de `tests/fixtures/` |
 ```

@@ -293,7 +293,7 @@ agora é adivinhação, porque o que você aprender na Fase 1 muda o resto.
 
 **Fase 6 — por vontade**
 Upload pela UI · transcrição com Whisper · modo exame cronometrado · busca semântica ·
-convite a colegas (`visibility=shared`) · demo anônimo (`public_demo` + rate limit por IP).
+convite a colegas (segundo e-mail em `ALLOWED_EMAILS`) · demo anônimo (rate limit por IP).
 
 ---
 
