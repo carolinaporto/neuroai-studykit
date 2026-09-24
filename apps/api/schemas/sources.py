@@ -70,4 +70,8 @@ class GenerateResponse(BaseModel):
     items_rejected: int
     items_deduped: int
     chunks_failed: int
+    # Of items_saved, how many came from extracting the professor's own literal "Facts to
+    # know" / "Questions to have a thoughtful answer to" questions rather than being
+    # invented from a chunk — see packages/ingest/cli.py's generate_for_week.
+    questions_extracted: int
     proposed_topics: list[str]

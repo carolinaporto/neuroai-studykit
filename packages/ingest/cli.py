@@ -41,12 +41,19 @@ from packages.db.session import DbSettings, make_session_factory
 
 from .chunker import chunk_blocks, estimate_tokens
 from .dedup import find_duplicate_item
-from .generator import GenerationFailedError, generate_items_for_chunk, prompt_version_hash
+from .generated_item import ValidatedItem
+from .generator import (
+    GenerationFailedError,
+    generate_items_for_chunk,
+    load_prompt_template,
+    prompt_version_hash,
+)
 from .models import Chunk, Locator, ParsedBlock
 from .parsers.pdf import parse_pdf
 from .parsers.pptx import parse_pptx
 from .parsers.transcript import parse_transcript
 from .topics import load_topics
+from .validators import collapse_whitespace
 
 PARSERS = {
     ".pdf": parse_pdf,
@@ -63,6 +70,16 @@ SOURCE_KIND_BY_EXTENSION = {
 }
 
 _WEEK_RE = re.compile(r"week0*(\d+)", re.IGNORECASE)
+
+EXTRACTION_PROMPT_PATH = Path(__file__).parent / "prompts" / "extract_professor_questions_v1.md"
+
+# Case-insensitive: the exact heading wording can vary slightly (seen in practice on a real
+# Week 3 deck). Matched against whitespace-collapsed text since PyMuPDF can wrap the heading
+# itself mid-phrase across a page/line break — same extraction artifact invariant 1 already
+# handles for quote-matching.
+_EXTRACTION_TRIGGER_RE = re.compile(
+    r"facts to know|questions to have a thoughtful answer to", re.IGNORECASE
+)
 
 
 def parse_file(path: Path) -> list[ParsedBlock]:
@@ -234,6 +251,48 @@ async def _spent_today_by_owner(session: AsyncSession, *, owner_id: uuid.UUID) -
     return grading_calls + generate_calls, grading_tokens + generate_tokens
 
 
+def _has_extraction_triggers(source_text: str) -> bool:
+    """Cheap pre-check so a source without either professor section never spends an LLM call
+    on the extraction prompt."""
+    return bool(_EXTRACTION_TRIGGER_RE.search(collapse_whitespace(source_text)))
+
+
+async def _source_already_extracted(session: AsyncSession, source_id: uuid.UUID) -> bool:
+    """Whether a source-level extraction job has already completed for this source — the
+    source-level equivalent of the per-chunk `covered_chunk_ids` check above, so a rerun
+    doesn't re-spend tokens re-extracting the same "Facts to know" list. Checked in Python
+    rather than a JSONB containment query: the per-source job count is small, and this keeps
+    the "what does source_extraction mean" logic in one place."""
+    jobs = (
+        await session.scalars(
+            select(IngestJob).where(
+                IngestJob.source_id == source_id,
+                IngestJob.kind == IngestJobKind.generate,
+                IngestJob.status == IngestJobStatus.done,
+            )
+        )
+    ).all()
+    return any(job.payload.get("source_extraction") is True for job in jobs)
+
+
+def _find_anchor_chunk(item: ValidatedItem, chunks: list[ChunkRow]) -> ChunkRow | None:
+    """An extracted item's rubric quotes are only guaranteed to exist somewhere in the whole
+    concatenated source text — that's all `generate_items_for_chunk`'s own validation checks.
+    But `Item.chunk_ids` needs one real chunk, same as every other item in the app assumes,
+    so find the single chunk whose own text contains every one of this item's support_quotes.
+    If no chunk does (support genuinely split across pages) or more than one does
+    ambiguously, the item is rejected rather than guessing or spanning multiple chunks."""
+    matches = [
+        chunk
+        for chunk in chunks
+        if all(
+            collapse_whitespace(point.support_quote) in collapse_whitespace(chunk.text)
+            for point in item.rubric
+        )
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 async def generate_for_week(
     week: int,
     session_factory: async_sessionmaker[AsyncSession],
@@ -268,14 +327,18 @@ async def generate_for_week(
     """
     vocabulary = load_topics()
     prompt_version = prompt_version_hash()
+    extraction_prompt_version = prompt_version_hash(EXTRACTION_PROMPT_PATH)
+    extraction_template = load_prompt_template(EXTRACTION_PROMPT_PATH)
     counts = {
         "chunks_processed": 0,
         "items_saved": 0,
         "items_rejected": 0,
         "items_deduped": 0,
         "chunks_failed": 0,
+        "questions_extracted": 0,
     }
     proposed_topics: list[str] = []
+    budget_exhausted = False
 
     async with session_factory() as session:
         sources = (await session.scalars(select(Source).where(Source.week == week))).all()
@@ -332,6 +395,7 @@ async def generate_for_week(
                 )
                 await session.commit()
                 counts["chunks_failed"] += 1
+                budget_exhausted = True
                 break
 
             job = IngestJob(
@@ -408,6 +472,145 @@ async def generate_for_week(
             counts["items_rejected"] += len(result.rejected)
             counts["items_deduped"] += chunk_items_deduped
 
+        # Once per source (not per chunk): extract the professor's own literal "Facts to
+        # know" / "Questions to have a thoughtful answer to" questions, if either is present
+        # anywhere in the source. Runs after the per-chunk loop above so chunks freshly
+        # created this run are already in `chunks_by_source` below.
+        chunks_by_source: dict[uuid.UUID, list[ChunkRow]] = {}
+        for chunk in chunks:
+            chunks_by_source.setdefault(chunk.source_id, []).append(chunk)
+
+        for source in sources:
+            if budget_exhausted:
+                break
+            source_chunks = chunks_by_source.get(source.id, [])
+            if not source_chunks:
+                continue
+            if not force and await _source_already_extracted(session, source.id):
+                continue
+
+            source_text = "\n\n".join(c.text for c in source_chunks)
+            if not _has_extraction_triggers(source_text):
+                continue
+
+            estimated_tokens = estimate_tokens(source_text) + MAX_OUTPUT_TOKENS
+            calls_today, tokens_today = await _spent_today_by_owner(
+                session, owner_id=source.owner_id
+            )
+            try:
+                check_budget(
+                    calls_today=calls_today,
+                    tokens_today=tokens_today,
+                    estimated_tokens=estimated_tokens,
+                    daily_token_budget=daily_token_budget,
+                    max_calls_per_day=max_calls_per_day,
+                )
+            except BudgetExceededError as exc:
+                session.add(
+                    IngestJob(
+                        source_id=source.id,
+                        kind=IngestJobKind.generate,
+                        status=IngestJobStatus.failed,
+                        attempts=0,
+                        error=str(exc),
+                        payload={"source_extraction": True},
+                    )
+                )
+                await session.commit()
+                counts["chunks_failed"] += 1
+                budget_exhausted = True
+                break
+
+            job = IngestJob(
+                source_id=source.id,
+                kind=IngestJobKind.generate,
+                status=IngestJobStatus.running,
+                attempts=1,
+                payload={"source_extraction": True, "estimated_tokens": estimated_tokens},
+            )
+            session.add(job)
+            await session.commit()
+
+            try:
+                result = await generate_items_for_chunk(
+                    chunk_text=source_text,
+                    week=week,
+                    vocabulary=vocabulary,
+                    llm=llm,
+                    prompt_template=extraction_template,
+                )
+            except GenerationFailedError as exc:
+                job.status = IngestJobStatus.failed
+                job.error = str(exc)
+                await session.commit()
+                counts["chunks_failed"] += 1
+                continue
+
+            rejected_reasons = [r.reason for r in result.rejected]
+            anchored: list[tuple[ValidatedItem, ChunkRow]] = []
+            for validated in result.items:
+                anchor_chunk = _find_anchor_chunk(validated, source_chunks)
+                if anchor_chunk is None:
+                    rejected_reasons.append(
+                        "extracted item's rubric quotes don't all appear in a single chunk: "
+                        f"{validated.prompt!r}"
+                    )
+                    continue
+                anchored.append((validated, anchor_chunk))
+
+            source_items_saved = 0
+            source_items_deduped = 0
+            if anchored:
+                embeddings = await embedding_client.embed([v.prompt for v, _ in anchored])
+                for (validated, anchor_chunk), embedding in zip(
+                    anchored, embeddings, strict=True
+                ):
+                    duplicate_of = await find_duplicate_item(
+                        session, week=week, embedding=embedding
+                    )
+                    if duplicate_of is not None:
+                        source_items_deduped += 1
+                        continue
+
+                    session.add(
+                        Item(
+                            source_id=source.id,
+                            chunk_ids=[anchor_chunk.id],
+                            type=ItemType(validated.type),
+                            prompt=validated.prompt,
+                            reference_answer=validated.reference_answer,
+                            rubric=[p.model_dump() for p in validated.rubric],
+                            choices=validated.choices,
+                            difficulty=validated.difficulty,
+                            bloom=ItemBloom(validated.bloom),
+                            topics=validated.topics,
+                            gen_model=llm.model_name,
+                            gen_prompt_version=extraction_prompt_version,
+                            embedding=embedding,
+                        )
+                    )
+                    await session.flush()
+                    source_items_saved += 1
+
+            for topic in result.proposed_topics:
+                if topic not in proposed_topics:
+                    proposed_topics.append(topic)
+
+            job.status = IngestJobStatus.done
+            job.payload = {
+                "source_extraction": True,
+                "items_saved": source_items_saved,
+                "items_rejected": len(rejected_reasons),
+                "items_deduped": source_items_deduped,
+                "rejected_reasons": rejected_reasons,
+                "attempts": result.attempts,
+            }
+            await session.commit()
+            counts["items_saved"] += source_items_saved
+            counts["items_rejected"] += len(rejected_reasons)
+            counts["items_deduped"] += source_items_deduped
+            counts["questions_extracted"] += source_items_saved
+
     return {**counts, "proposed_topics": proposed_topics}
 
 
@@ -439,7 +642,8 @@ def _run_generate(week: int, force: bool) -> int:
     print(
         f"{result['chunks_processed']} chunks processados, {result['items_saved']} itens salvos, "
         f"{result['items_rejected']} itens rejeitados, {result['items_deduped']} itens "
-        f"deduplicados, {result['chunks_failed']} chunks falharam"
+        f"deduplicados, {result['chunks_failed']} chunks falharam, "
+        f"{result['questions_extracted']} perguntas extraídas do professor"
     )
     proposed = result["proposed_topics"]
     if proposed:
