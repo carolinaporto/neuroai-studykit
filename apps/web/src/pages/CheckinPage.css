@@ -33,7 +33,9 @@
 }
 
 .checkin-draft {
-  max-width: 640px;
+  /* Same fix as ReviewQueuePage.css: 640px was a reading-width measure applied to the
+     whole box instead of just prose. */
+  max-width: 880px;
   background: var(--surface-100);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -46,11 +48,47 @@
   margin-bottom: var(--space-2);
 }
 
+/* Rendered markdown (react-markdown), not raw text — was a <pre> dumping the literal
+   "# heading" / "**bold**" source before this. Headings/lists/paragraphs below all come
+   from the same draft_markdown string, just parsed instead of printed verbatim. */
 .checkin-draft-text {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
   color: var(--ink);
-  white-space: pre-wrap;
-  margin: 0;
+}
+
+.checkin-draft-text > :first-child {
+  margin-top: 0;
+}
+
+.checkin-draft-text > :last-child {
+  margin-bottom: 0;
+}
+
+.checkin-draft-text h1,
+.checkin-draft-text h2,
+.checkin-draft-text h3 {
+  font-family: var(--font-serif);
+  color: var(--ink);
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+.checkin-draft-text p {
+  margin: 0 0 var(--space-3);
+}
+
+.checkin-draft-text ul,
+.checkin-draft-text ol {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+}
+
+.checkin-draft-text li {
+  margin-bottom: var(--space-1);
+}
+
+.checkin-draft-text strong {
+  color: var(--ink);
+  font-weight: 600;
 }

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import Markdown from 'react-markdown'
 
 import { getCheckinDraft } from '../api/client'
 import { useSession } from '../auth/useAuth'
@@ -62,7 +63,9 @@ export function CheckinPage() {
               {copied ? 'Copied' : 'Copy'}
             </Button>
           </div>
-          <pre className="checkin-draft-text">{query.data.draft_markdown}</pre>
+          <div className="checkin-draft-text">
+            <Markdown>{query.data.draft_markdown}</Markdown>
+          </div>
         </div>
       )}
     </div>
