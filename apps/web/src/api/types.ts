@@ -192,6 +192,8 @@ export interface QuizReviewResponse {
 export interface ItemSourceResponse {
   locator: Locator
   text: string
+  source_id: string
+  source_kind: string
 }
 
 // --- items / review (M6) ---
@@ -223,6 +225,8 @@ export interface ItemOut {
 export interface ReviewChunkOut {
   locator: Locator
   text: string
+  source_id: string
+  source_kind: string
 }
 
 export interface ReviewItemOut extends ItemOut {

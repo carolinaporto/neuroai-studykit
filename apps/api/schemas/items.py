@@ -40,10 +40,13 @@ class ItemOut(BaseModel):
 class ReviewChunkOut(BaseModel):
     """Same shape as `apps/api/schemas/study.py`'s `ItemSourceResponse` — the item's anchor
     chunk, embedded directly in the review queue response so the review UI never has to make
-    a second round trip per item just to show what it's ancored to."""
+    a second round trip per item just to show what it's ancored to. source_id/source_kind:
+    same reason as that schema — lets the review UI offer "view the real page" for a PDF."""
 
     locator: dict
     text: str
+    source_id: uuid.UUID
+    source_kind: str
 
 
 class ReviewItemOut(ItemOut):

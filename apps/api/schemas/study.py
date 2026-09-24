@@ -135,7 +135,15 @@ class ItemSourceResponse(BaseModel):
     a quiz. Deliberately just the locator + full chunk text: no rubric, no reference_answer.
     Reading the class material isn't the same as being handed the gabarito, which is why
     this doesn't violate the "no reveal button" rule — the item still has to be answered for
-    real afterward for the attempt to count it graded."""
+    real afterward for the attempt to count it graded.
+
+    source_id/source_kind: added so the frontend can offer "view the real page" (the actual
+    PDF, via GET /api/sources/{id}/file#page=N) instead of only the raw extracted text —
+    that text is what proves the anchor, but for a dense PDF page it's an ugly read on its
+    own. Only lecture_pdf/paper sources are ever embeddable this way (SourcePreviewPanel's
+    own EMBEDDABLE_KINDS); the frontend gates the button on source_kind, not this schema."""
 
     locator: dict
     text: str
+    source_id: uuid.UUID
+    source_kind: str

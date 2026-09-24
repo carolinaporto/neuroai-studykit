@@ -155,6 +155,8 @@ async def test_review_queue_groups_by_week_and_embeds_the_anchor_chunk() -> None
             assert item["status"] == "draft"
             assert item["chunk"]["text"] == CHUNK_TEXT
             assert item["chunk"]["locator"] == {"page": 7}
+            assert item["chunk"]["source_id"] == str(source_id)
+            assert item["chunk"]["source_kind"] == "lecture_pdf"
     finally:
         await _cleanup(session_factory, [source_id])
 

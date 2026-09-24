@@ -398,6 +398,8 @@ async def test_get_item_source_returns_chunk_text_without_gabarito() -> None:
             body = resp.json()
             assert body["locator"] == {"page": 7}
             assert body["text"] == CHUNK_TEXT
+            assert body["source_id"] == str(source_id)
+            assert body["source_kind"] == "lecture_pdf"
             assert "rubric" not in body
             assert "reference_answer" not in body
     finally:

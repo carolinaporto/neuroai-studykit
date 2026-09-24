@@ -1,8 +1,10 @@
-import { Fragment, useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 import type { ReviewChunkOut } from '../api/types'
 import { findHighlightRanges } from '../lib/highlightQuotes'
 import { formatLocator } from '../lib/locator'
+import { EMBEDDABLE_KINDS } from '../lib/sourceKinds'
+import { SourcePageViewer } from './SourcePageViewer'
 import './SourcePassage.css'
 
 // Same rendering as `SourcePassage`, but the chunk arrives as a prop instead of being
@@ -36,12 +38,34 @@ export function ReviewSourcePassage({
   chunk: ReviewChunkOut
   quotes: string[]
 }) {
+  const [viewingOriginal, setViewingOriginal] = useState(false)
+
   return (
     <div className="source-passage">
-      <p className="label source-passage-label">From the source — {formatLocator(chunk.locator)}</p>
+      <div className="source-passage-header">
+        <p className="label source-passage-label">
+          From the source — {formatLocator(chunk.locator)}
+        </p>
+        {EMBEDDABLE_KINDS.has(chunk.source_kind) && (
+          <button
+            type="button"
+            className="source-passage-view-original"
+            onClick={() => setViewingOriginal(true)}
+          >
+            View original page ↗
+          </button>
+        )}
+      </div>
       <p className="body-sm source-passage-text">
         <HighlightedText text={chunk.text} quotes={quotes} />
       </p>
+      {viewingOriginal && (
+        <SourcePageViewer
+          sourceId={chunk.source_id}
+          page={chunk.locator.page}
+          onClose={() => setViewingOriginal(false)}
+        />
+      )}
     </div>
   )
 }

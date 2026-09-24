@@ -31,7 +31,7 @@ async def list_review_queue(
     list — same convention as `list_sources` in `apps/api/routers/sources.py`."""
     rows = (
         await session.execute(
-            select(Item, Source.week)
+            select(Item, Source.week, Source.kind)
             .join(Source, Source.id == Item.source_id)
             .where(Item.status == ItemStatus.draft, Source.week.is_not(None))
             .order_by(Source.week, Item.created_at)
@@ -39,6 +39,7 @@ async def list_review_queue(
     ).all()
     items = [row[0] for row in rows]
     weeks = [row[1] for row in rows]
+    source_kinds = [row[2] for row in rows]
 
     chunk_ids = {item.chunk_ids[0] for item in items if item.chunk_ids}
     chunks = (
@@ -48,13 +49,18 @@ async def list_review_queue(
 
     vocabulary = load_topics()
     grouped: dict[int, list[ReviewItemOut]] = {}
-    for item, week in zip(items, weeks, strict=True):
+    for item, week, source_kind in zip(items, weeks, source_kinds, strict=True):
         chunk = chunk_by_id.get(item.chunk_ids[0]) if item.chunk_ids else None
         if chunk is None:
             continue  # an item with no resolvable anchor chunk has nothing to review against
         review_item = ReviewItemOut(
             **ItemOut.model_validate(item).model_dump(),
-            chunk={"locator": chunk.locators[0] if chunk.locators else {}, "text": chunk.text},
+            chunk={
+                "locator": chunk.locators[0] if chunk.locators else {},
+                "text": chunk.text,
+                "source_id": item.source_id,
+                "source_kind": source_kind.value,
+            },
             gen_model=item.gen_model,
         )
         grouped.setdefault(week, []).append(review_item)

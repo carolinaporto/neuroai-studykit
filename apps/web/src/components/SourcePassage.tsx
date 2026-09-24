@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { Fragment, useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 import { getItemSource } from '../api/client'
 import { findHighlightRanges } from '../lib/highlightQuotes'
 import { formatLocator } from '../lib/locator'
+import { EMBEDDABLE_KINDS } from '../lib/sourceKinds'
+import { SourcePageViewer } from './SourcePageViewer'
 import './SourcePassage.css'
 
 function HighlightedText({ text, quotes }: { text: string; quotes: string[] }) {
@@ -32,6 +34,7 @@ function HighlightedText({ text, quotes }: { text: string; quotes: string[] }) {
 // quotes StudyAnswerResponse.source carries — those stay literal too, but out of context
 // they read like fragments; seeing them inside the real passage is what the user asked for.
 export function SourcePassage({ itemId, quotes }: { itemId: string; quotes: string[] }) {
+  const [viewingOriginal, setViewingOriginal] = useState(false)
   const query = useQuery({
     queryKey: ['item-source', itemId],
     queryFn: () => getItemSource(itemId),
@@ -42,12 +45,30 @@ export function SourcePassage({ itemId, quotes }: { itemId: string; quotes: stri
 
   return (
     <div className="source-passage">
-      <p className="label source-passage-label">
-        From the source — {formatLocator(query.data.locator)}
-      </p>
+      <div className="source-passage-header">
+        <p className="label source-passage-label">
+          From the source — {formatLocator(query.data.locator)}
+        </p>
+        {EMBEDDABLE_KINDS.has(query.data.source_kind) && (
+          <button
+            type="button"
+            className="source-passage-view-original"
+            onClick={() => setViewingOriginal(true)}
+          >
+            View original page ↗
+          </button>
+        )}
+      </div>
       <p className="body-sm source-passage-text">
         <HighlightedText text={query.data.text} quotes={quotes} />
       </p>
+      {viewingOriginal && (
+        <SourcePageViewer
+          sourceId={query.data.source_id}
+          page={query.data.locator.page}
+          onClose={() => setViewingOriginal(false)}
+        />
+      )}
     </div>
   )
 }

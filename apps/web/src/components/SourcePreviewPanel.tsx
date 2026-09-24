@@ -3,13 +3,10 @@ import { useEffect, useMemo } from 'react'
 
 import { deleteSource, fetchSourceFile, getSource } from '../api/client'
 import { formatLocator } from '../lib/locator'
+import { EMBEDDABLE_KINDS } from '../lib/sourceKinds'
 import { Button } from './Button'
 import { useToast } from './toastContext'
 import './SourcePreviewPanel.css'
-
-// Only a PDF can be embedded natively in the browser — .pptx and transcripts fall back to
-// the extracted chunk text below, plus a download link for the real file.
-const EMBEDDABLE_KINDS = new Set(['lecture_pdf', 'paper'])
 
 export function SourcePreviewPanel({
   sourceId,

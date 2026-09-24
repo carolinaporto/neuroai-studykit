@@ -126,8 +126,13 @@ async def get_item_source(
     chunk = await session.get(Chunk, item.chunk_ids[0])
     if chunk is None:
         raise HTTPException(status_code=404, detail="source chunk not found")
+    source = await session.get(Source, item.source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="source not found")
     locator = chunk.locators[0] if chunk.locators else {}
-    return ItemSourceResponse(locator=locator, text=chunk.text)
+    return ItemSourceResponse(
+        locator=locator, text=chunk.text, source_id=source.id, source_kind=source.kind.value
+    )
 
 
 def _source_excerpts(item: Item, chunks: list[Chunk]) -> list[SourceExcerpt]:
