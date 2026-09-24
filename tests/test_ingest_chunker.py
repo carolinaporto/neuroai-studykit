@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ingest.chunker import MAX_CHUNK_TOKENS, chunk_blocks, estimate_tokens
+from ingest.chunker import MAX_CHUNK_TOKENS, MAX_LOCATORS_PER_CHUNK, chunk_blocks, estimate_tokens
 from ingest.models import Locator, ParsedBlock
 from ingest.parsers.pdf import parse_pdf
 from ingest.parsers.pptx import parse_pptx
@@ -80,3 +80,24 @@ def test_oversized_single_block_is_split_on_sentence_boundaries() -> None:
     for chunk in chunks:
         assert chunk.token_count <= MAX_CHUNK_TOKENS
         assert chunk.text.strip().endswith(".")
+
+
+def test_a_sparse_many_page_deck_splits_on_locator_count_not_just_tokens() -> None:
+    """The real bug this reproduces: a 40-page slide deck with a short bullet or two per
+    page never reaches MAX_CHUNK_TOKENS in aggregate, so without a second trigger the whole
+    deck becomes one chunk spanning every page — confirmed against a real Week 3 upload
+    (844 tokens, 25 page locators, one chunk). Each block here is ~15 tokens; 40 of them
+    total ~600 tokens, comfortably under the 900-token ceiling, so only the locator-count
+    trigger can be what splits this."""
+    blocks = [
+        ParsedBlock(
+            text=f"Slide {i} says a short thing about intelligence.", locator=Locator(page=i)
+        )
+        for i in range(1, 41)
+    ]
+
+    chunks = chunk_blocks(blocks)
+
+    assert len(chunks) > 1, "a 40-page sparse deck must not collapse into a single chunk"
+    for chunk in chunks:
+        assert len(chunk.locators) <= MAX_LOCATORS_PER_CHUNK
