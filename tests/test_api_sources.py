@@ -72,7 +72,7 @@ async def test_list_sources_groups_by_week_with_title_from_topics_yaml() -> None
         slides = Source(
             owner_id=owner_id,
             week=3,
-            title="Lecture 05 — Hebbian Learning slides",
+            title="Lecture 03 — What is Intelligence slides",
             kind=SourceKind.slides,
             storage_uri="test://slides",
             sha256=uuid.uuid4().hex + uuid.uuid4().hex,
@@ -82,7 +82,7 @@ async def test_list_sources_groups_by_week_with_title_from_topics_yaml() -> None
         reading = Source(
             owner_id=owner_id,
             week=3,
-            title="Hebb (1949) — The first stage of perception",
+            title="Legg & Hutter (2007) — A collection of definitions of intelligence",
             kind=SourceKind.paper,
             storage_uri="test://reading",
             sha256=uuid.uuid4().hex + uuid.uuid4().hex,
@@ -99,11 +99,11 @@ async def test_list_sources_groups_by_week_with_title_from_topics_yaml() -> None
             assert resp.status_code == 200
             body = resp.json()
             week3 = next(w for w in body if w["week"] == 3)
-            assert week3["title"] == "Learning, development, and the growth of intelligence"
+            assert week3["title"] == "What is intelligence? Evolution and adaptive minds"
             titles = {s["title"] for s in week3["sources"]}
             assert titles == {
-                "Lecture 05 — Hebbian Learning slides",
-                "Hebb (1949) — The first stage of perception",
+                "Lecture 03 — What is Intelligence slides",
+                "Legg & Hutter (2007) — A collection of definitions of intelligence",
             }
             slides_row = next(s for s in week3["sources"] if s["kind"] == "slides")
             assert slides_row["page_count"] == 38
