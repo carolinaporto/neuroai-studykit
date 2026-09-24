@@ -1,7 +1,9 @@
 """Tests for `ingest.generator` against `FakeLLM` (CLAUDE.md invariant 5: no test calls the
-real Anthropic API). Uses the real `packages/ingest/topics.yaml` (week 3 = Hebbian
-plasticity / LTP / supervised & reinforcement learning), not a mock vocabulary, so these
-tests exercise the actual controlled vocabulary the generator will run against.
+real Anthropic API). Uses the real `packages/ingest/topics.yaml` — week 0 (topics.yaml's
+u03: Hebbian plasticity / LTP / supervised & reinforcement learning, parked there because
+it isn't taught this semester, but its vocabulary is still real and still needs a unit
+some week can resolve to), not a mock vocabulary, so these tests exercise the actual
+controlled vocabulary the generator will run against.
 """
 
 import json
@@ -62,7 +64,7 @@ async def test_good_output_is_accepted_with_normalized_topics() -> None:
     llm = FakeLLM([json.dumps({"items": [_good_item()]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.rejected == []
@@ -80,7 +82,7 @@ async def test_empty_batch_is_success_not_a_failure() -> None:
     llm = FakeLLM([json.dumps({"items": []})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -103,7 +105,7 @@ async def test_invented_quote_is_rejected_not_the_whole_batch() -> None:
     )
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert len(result.items) == 1  # the good item in the same batch is still saved
@@ -136,7 +138,7 @@ async def test_quote_with_mid_sentence_newline_in_chunk_is_still_accepted() -> N
     llm = FakeLLM([json.dumps({"items": [_good_item(rubric=rubric)]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=pdf_like_chunk, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=pdf_like_chunk, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.rejected == []
@@ -165,7 +167,7 @@ async def test_quote_differing_by_more_than_whitespace_is_still_rejected() -> No
     llm = FakeLLM([json.dumps({"items": [_good_item(rubric=rubric)]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=pdf_like_chunk, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=pdf_like_chunk, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -179,7 +181,7 @@ async def test_malformed_json_retries_once_then_fails() -> None:
 
     with pytest.raises(GenerationFailedError):
         await generate_items_for_chunk(
-            chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+            chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
         )
 
     assert len(llm.calls) == 2  # exactly one retry, not more
@@ -190,7 +192,7 @@ async def test_malformed_json_then_good_response_succeeds_on_retry() -> None:
     llm = FakeLLM(["{not valid json", json.dumps({"items": [_good_item()]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert len(result.items) == 1
@@ -203,7 +205,7 @@ async def test_one_point_rubric_is_rejected() -> None:
     llm = FakeLLM([json.dumps({"items": [_good_item(rubric=[GOOD_RUBRIC[0]])]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -220,7 +222,7 @@ async def test_self_answerable_item_is_rejected() -> None:
     llm = FakeLLM([json.dumps({"items": [_good_item(prompt=leaking_prompt)]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -233,7 +235,7 @@ async def test_unknown_topic_is_rejected() -> None:
     llm = FakeLLM([json.dumps({"items": [_good_item(topics=["quantum-entanglement"])]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -261,7 +263,7 @@ async def test_item_with_no_matching_topic_is_kept_untagged() -> None:
     )
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.rejected == []
@@ -277,7 +279,7 @@ async def test_proposed_topics_are_collected_but_never_persisted() -> None:
     )
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert len(result.items) == 1
@@ -293,7 +295,7 @@ async def test_json_wrapped_in_markdown_fence_is_still_accepted() -> None:
     llm = FakeLLM([fenced])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert len(result.items) == 1
@@ -302,16 +304,16 @@ async def test_json_wrapped_in_markdown_fence_is_still_accepted() -> None:
 
 @pytest.mark.asyncio
 async def test_prompt_is_rendered_with_week_scoped_topics_only() -> None:
-    """The prompt must offer only week 3's unit topics + cross_cutting, never the full
+    """The prompt must offer only week 0's unit topics + cross_cutting, never the full
     155-topic vocabulary."""
     llm = FakeLLM([json.dumps({"items": []})])
 
-    await generate_items_for_chunk(chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm)
+    await generate_items_for_chunk(chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm)
 
     rendered = llm.calls[0]["user"]
-    assert "hebbian-plasticity" in rendered  # week 3 unit topic
+    assert "hebbian-plasticity" in rendered  # week 0 unit topic
     assert "single-unit-recording" in rendered  # cross_cutting topic
-    assert "hubel-wiesel" not in rendered  # a week 5 topic must not leak in
+    assert "hubel-wiesel" not in rendered  # a week 0 topic must not leak in
 
 
 def _good_mcq_item(**overrides: object) -> dict:
@@ -350,7 +352,7 @@ async def test_good_mcq_item_is_accepted_with_shuffled_choices() -> None:
     llm = FakeLLM([json.dumps({"items": [_good_mcq_item()]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.rejected == []
@@ -373,7 +375,7 @@ async def test_mcq_missing_choices_is_rejected() -> None:
     llm = FakeLLM([json.dumps({"items": [raw]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -388,7 +390,7 @@ async def test_mcq_reference_answer_not_among_choices_is_rejected() -> None:
     )
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -401,7 +403,7 @@ async def test_mcq_with_two_rubric_points_is_rejected() -> None:
     llm = FakeLLM([json.dumps({"items": [_good_mcq_item(rubric=GOOD_RUBRIC)]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -414,7 +416,7 @@ async def test_good_cloze_item_is_accepted() -> None:
     llm = FakeLLM([json.dumps({"items": [_good_cloze_item()]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.rejected == []
@@ -442,7 +444,7 @@ async def test_cloze_prompt_with_no_blank_is_rejected() -> None:
     )
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -457,7 +459,7 @@ async def test_cloze_prompt_with_two_blanks_is_rejected() -> None:
     )
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []
@@ -473,7 +475,7 @@ async def test_free_recall_still_rejects_choices_and_still_needs_two_to_five_poi
     llm = FakeLLM([json.dumps({"items": [with_choices, one_point]})])
 
     result = await generate_items_for_chunk(
-        chunk_text=CHUNK_TEXT, week=3, vocabulary=_vocabulary(), llm=llm
+        chunk_text=CHUNK_TEXT, week=0, vocabulary=_vocabulary(), llm=llm
     )
 
     assert result.items == []

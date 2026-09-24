@@ -317,7 +317,9 @@ def _generated_batch_json() -> str:
 async def test_generate_uses_fake_llm_and_saves_items() -> None:
     session_factory = make_session_factory(DbSettings().database_url)
     owner_id = DbSettings().dev_owner_id
-    week = 3  # a real syllabus week — topics.yaml needs a matching unit for generation
+    week = 0  # topics.yaml's u03 ("hebbian-plasticity") is parked here, not taught this
+    # semester — generation needs a matching unit regardless, and week 0 can never collide
+    # with real content (no real Source.week is ever 0)
 
     async with session_factory() as session:
         await _ensure_owner(session, owner_id)

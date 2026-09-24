@@ -82,7 +82,7 @@ cross_cutting:
 units:
   # -------------------------------------------------------------------------
   - id: u01
-    week: 1
+    week: 3
     title: "What is intelligence? Evolution and adaptive minds"
     topics:
       - slug: definitions-of-intelligence
@@ -123,7 +123,7 @@ units:
 
   # -------------------------------------------------------------------------
   - id: u02
-    week: 2
+    week: 4
     title: "Neurons, networks, and representation geometry"
     topics:
       - slug: neuron-doctrine
@@ -174,8 +174,16 @@ units:
         side: ai
 
   # -------------------------------------------------------------------------
+  # week: 0 — parked, not a real week. Confirmed not taught this semester (the real
+  # syllabus jumps from week 4's "Neurons, Networks, Representational Spaces" straight to
+  # week 5's "Perception, recognition, and emergent alignment" — no week in between covers
+  # this unit's content). 0 never collides with a real Source.week (always >= 1), so this
+  # unit is inert — title_for_week/topics_for_week are simply never called with week=0 by
+  # anything real, only by FIXTURE_WEEK_ALIASES below. Left in the vocabulary (not
+  # deleted) in case a syllabus revision brings it back, or an already-generated item still
+  # carries one of its topic slugs.
   - id: u03
-    week: 3
+    week: 0
     title: "Learning, development, and the growth of intelligence"
     topics:
       - slug: hebbian-plasticity
@@ -239,8 +247,9 @@ units:
         aliases: ["bias-variance", "held-out set"]
 
   # -------------------------------------------------------------------------
+  # week: 0 — parked, same reasoning as u03 above: confirmed not taught this semester.
   - id: u04
-    week: 4
+    week: 0
     title: "Large-scale brain networks and AI architectures"
     topics:
       - slug: cortical-hierarchy
@@ -441,7 +450,7 @@ units:
 
   # -------------------------------------------------------------------------
   - id: u08
-    week: 8
+    week: 9
     title: "Attention, working memory, and cognitive control"
     topics:
       - slug: selective-attention
@@ -481,7 +490,7 @@ units:
 
   # -------------------------------------------------------------------------
   - id: u09
-    week: 9
+    week: 10
     title: "Action, planning, robotics, and brain–computer interfaces"
     topics:
       - slug: motor-cortex
@@ -523,7 +532,7 @@ units:
 
   # -------------------------------------------------------------------------
   - id: u10
-    week: 10
+    week: 11
     title: "Consciousness and agency"
     topics:
       - slug: neural-correlates-of-consciousness
@@ -561,8 +570,12 @@ units:
         side: ai
 
   # -------------------------------------------------------------------------
+  # week: 0 — parked. The real syllabus's week 12 is "Emotion, Value, Motivation" and week
+  # 14 is "Social Intelligence" — neither matches this unit's topic. Unconfirmed whether
+  # this content was dropped (like u03/u04) or moved elsewhere; week 12 and 14 need their
+  # own real units written from that material when we get there, not a guess now.
   - id: u11
-    week: 11
+    week: 0
     title: "Energy, metabolism, and the physical limits of intelligence"
     topics:
       - slug: brain-energy-budget
@@ -601,8 +614,9 @@ units:
         aliases: ["datacenter energy"]
 
   # -------------------------------------------------------------------------
+  # week: 0 — parked, same reasoning as u11 above.
   - id: u12
-    week: 12
+    week: 0
     title: "Brains, Machines, and the Future of Intelligent Systems"
     topics:
       - slug: agi-definitions-and-timelines

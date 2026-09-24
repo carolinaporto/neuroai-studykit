@@ -14,14 +14,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 TOPICS_PATH = Path(__file__).parent / "topics.yaml"
 
-# Real syllabus weeks are 1-12 (see topics.yaml `units`). 90/91 are not real course weeks —
-# they exist only so the synthetic fixture corpus (tests/fixtures/) can be synced under a
-# week number and run through `generate` as a smoke test, without a real week's number ever
-# colliding with fixture data in a dev database. No separate "dev mode" flag is needed
-# because the numbers themselves can never appear in a real content/weekNN folder.
-# 90 -> u02 (neurons/synapses: the PDF fixture) and 91 -> u03 (Hebbian learning + ML/RL
-# basics: the pptx/vtt fixtures) are the closest real units to what those fixtures cover.
-FIXTURE_WEEK_ALIASES = {90: 2, 91: 3}
+# Real syllabus weeks run 2-14 this semester (see topics.yaml `units`; some have no unit —
+# a pure-intro week, the midterm, a no-class week, or content not yet written). 90/91 are
+# not real course weeks — they exist only so the synthetic fixture corpus (tests/fixtures/)
+# can be synced under a week number and run through `generate` as a smoke test, without a
+# real week's number ever colliding with fixture data in a dev database. No separate "dev
+# mode" flag is needed because the numbers themselves can never appear in a real
+# content/weekNN folder.
+# 90 -> u02 (neurons/synapses: the PDF fixture, real week 4) and 91 -> u03 (Hebbian
+# learning + ML/RL basics: the pptx/vtt fixtures) are the closest units to what those
+# fixtures cover — u03 is parked at week 0 (not taught this semester, topics.yaml's own
+# comment on it), which is fine here: this alias only needs *a* week whose unit offers
+# hebbian-plasticity, not a real one.
+FIXTURE_WEEK_ALIASES = {90: 4, 91: 0}
 
 
 class TopicEntry(BaseModel):

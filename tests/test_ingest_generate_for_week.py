@@ -2,14 +2,12 @@
 dev Postgres (`docker compose up` must be running), with `FakeLLM`/`FakeEmbeddingClient` —
 CLAUDE.md invariant 5's spirit extended to the embedding provider too.
 
-Uses week 3, a real syllabus week — `topics_for_week` (packages/ingest/topics.py) raises
-for any week with no `topics.yaml` unit, and `generate_for_week` doesn't take a vocabulary
-override, so a synthetic week number isn't an option here (same constraint
-tests/test_api_sources_upload.py's own generate test already documents). This is safe
-against the dev database's real week-3 content: every pre-existing item there has
-`embedding = NULL` (the column is brand new), and `find_duplicate_item` only ever compares
-against non-NULL embeddings — so nothing this test creates can collide with real content,
-and nothing real can be mistaken for one of this test's duplicates.
+Uses week 0 — topics.yaml's u03 ("hebbian-plasticity" among its topics) is parked there,
+not taught this semester, but its vocabulary is still real and `topics_for_week`
+(packages/ingest/topics.py) raises for any week with no `topics.yaml` unit at all, so a
+synthetic week number isn't an option here (same constraint
+tests/test_api_sources_upload.py's own generate test already documents). Week 0 can never
+collide with real content — no real Source.week is ever 0.
 """
 
 import json
@@ -35,7 +33,7 @@ from packages.db.models import (
 )
 from packages.db.session import DbSettings, make_session_factory
 
-WEEK = 3
+WEEK = 0
 
 CHUNK_TEXT = (
     "Hebbian plasticity is often summarized as cells that fire together wire together. "
